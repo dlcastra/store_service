@@ -2,7 +2,7 @@ import rest_framework.authtoken.views as auth
 from django.urls import path
 from rest_framework import routers
 
-from storeapi import views
+from usersapi import views
 
 router = routers.DefaultRouter()
 router.register(r"register", views.RegisterView, basename="register"),

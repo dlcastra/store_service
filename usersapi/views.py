@@ -1,3 +1,85 @@
-from django.shortcuts import render
+from django.contrib.auth.models import User
+from rest_framework import generics, permissions, status
+from rest_framework.authtoken.models import Token
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework.viewsets import GenericViewSet
 
-# Create your views here.
+from usersapi.serializers import RegisterSerializer
+
+
+class RegisterView(generics.CreateAPIView, GenericViewSet):
+    queryset = User.objects.all()
+    permission_classes = [permissions.AllowAny]
+    serializer_class = RegisterSerializer
+
+
+class LogoutView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        try:
+            token = Token.objects.get(user=request.user)
+            token.delete()
+
+            return Response({"detail": "Successfully logged out."}, status=status.HTTP_200_OK)
+
+        except Token.DoesNotExist:
+            return Response({"detail": "Token not found."}, status=status.HTTP_404_NOT_FOUND)
+
+
+class DeleteAccountView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        header_token = request.headers.get("Authorization").split()[1]
+
+        if not header_token:
+            return Response({"detail": "The token has not been transferred."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            token = Token.objects.get(user=request.user)
+            if header_token == token.key:
+                user = User.objects.get(username=request.user.username)
+                user.delete()
+
+                return Response({"detail": "Successfully deleted account."}, status=status.HTTP_200_OK)
+
+        except Token.DoesNotExist:
+            return Response({"detail": "Token does not exist."}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response({"detail": "Bad request"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class RotateTokenView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        header_token = request.headers.get("Authorization").split()[1]
+        if not header_token:
+            return Response({"detail": "The token has not been transferred."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            token = Token.objects.get(user=request.user)
+            if header_token == token.key:
+                token.delete()
+                new_token = Token.objects.create(user=request.user)
+
+                return Response({"New token": new_token.key}, status=status.HTTP_200_OK)
+
+        except Token.DoesNotExist:
+            return Response({"detail": "Token does not exist."}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response({"detail": "Bad request"}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class GetAllActiveSessionsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        tokens = Token.objects.filter(user=request.user)
+        if not tokens.exists():
+            return Response({"detail": "No active sessions found."}, status=status.HTTP_404_NOT_FOUND)
+
+        sessions = [{"token": token.key, "created_at": token.created} for token in tokens]
+        return Response({"sessions": sessions}, status=status.HTTP_200_OK)
