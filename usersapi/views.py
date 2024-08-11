@@ -1,17 +1,33 @@
 from django.contrib.auth.models import User
 from rest_framework import generics, permissions, status
 from rest_framework.authtoken.models import Token
+from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
 
-from usersapi.serializers import RegisterSerializer
+from usersapi import serializers
+from usersapi.models import CustomObtainToken
 
 
 class RegisterView(generics.CreateAPIView, GenericViewSet):
     queryset = User.objects.all()
     permission_classes = [permissions.AllowAny]
-    serializer_class = RegisterSerializer
+    serializer_class = serializers.RegisterSerializer
+
+
+class LoginWithObtainAuthToken(ObtainAuthToken):
+    def post(self, request, *args, **kwargs):
+        serializer = self.serializer_class(data=request.data, context={"request": request})
+        serializer.is_valid(raise_exception=True)
+        user = serializer.validated_data["user"]
+
+        token, created = CustomObtainToken.objects.get_or_create(user=user)
+        token.user_agent = request.META.get("HTTP_USER_AGENT")
+        token.ip_address = request.META.get("REMOTE_ADDR")
+        print(request.META.get("REMOTE_ADDR"))
+
+        return Response({"token": token.key, "user_agent": token.user_agent, "ip_address": token.ip_address})
 
 
 class LogoutView(APIView):
