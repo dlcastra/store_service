@@ -1,7 +1,7 @@
+from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from rest_framework import generics, permissions, status
 from rest_framework.authtoken.models import Token
-from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
@@ -16,18 +16,23 @@ class RegisterView(generics.CreateAPIView, GenericViewSet):
     serializer_class = serializers.RegisterSerializer
 
 
-class LoginWithObtainAuthToken(ObtainAuthToken):
+class LoginWithObtainAuthToken(APIView):
     def post(self, request, *args, **kwargs):
-        serializer = self.serializer_class(data=request.data, context={"request": request})
-        serializer.is_valid(raise_exception=True)
-        user = serializer.validated_data["user"]
+        username = request.data.get("username")
+        password = request.data.get("password")
+        user = authenticate(username=username, password=password)
+        print(user)
 
-        token, created = CustomObtainToken.objects.get_or_create(user=user)
-        token.user_agent = request.META.get("HTTP_USER_AGENT")
-        token.ip_address = request.META.get("REMOTE_ADDR")
-        print(request.META.get("REMOTE_ADDR"))
+        user_agent = request.META.get("HTTP_USER_AGENT")
+        ip_addr = request.META.get("REMOTE_ADDR")
 
-        return Response({"token": token.key, "user_agent": token.user_agent, "ip_address": token.ip_address})
+        token, created = CustomObtainToken.objects.get_or_create(
+            user=user,
+            user_agent=user_agent,
+            ip_address=ip_addr,
+        )
+
+        return Response({"Token": token.key, "user_agent": token.user_agent}, status=status.HTTP_200_OK)
 
 
 class LogoutView(APIView):
@@ -35,12 +40,12 @@ class LogoutView(APIView):
 
     def post(self, request):
         try:
-            token = Token.objects.get(user=request.user)
+            token = CustomObtainToken.objects.get(user=request.user)
             token.delete()
 
             return Response({"detail": "Successfully logged out."}, status=status.HTTP_200_OK)
 
-        except Token.DoesNotExist:
+        except CustomObtainToken.DoesNotExist:
             return Response({"detail": "Token not found."}, status=status.HTTP_404_NOT_FOUND)
 
 
@@ -54,14 +59,14 @@ class DeleteAccountView(APIView):
             return Response({"detail": "The token has not been transferred."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            token = Token.objects.get(user=request.user)
+            token = CustomObtainToken.objects.get(user=request.user)
             if header_token == token.key:
                 user = User.objects.get(username=request.user.username)
                 user.delete()
 
                 return Response({"detail": "Successfully deleted account."}, status=status.HTTP_200_OK)
 
-        except Token.DoesNotExist:
+        except CustomObtainToken.DoesNotExist:
             return Response({"detail": "Token does not exist."}, status=status.HTTP_404_NOT_FOUND)
 
         return Response({"detail": "Bad request"}, status=status.HTTP_400_BAD_REQUEST)
@@ -76,10 +81,10 @@ class RotateTokenView(APIView):
             return Response({"detail": "The token has not been transferred."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            token = Token.objects.get(user=request.user)
+            token = CustomObtainToken.objects.get(user=request.user)
             if header_token == token.key:
                 token.delete()
-                new_token = Token.objects.create(user=request.user)
+                new_token = CustomObtainToken.objects.create(user=request.user)
 
                 return Response({"New token": new_token.key}, status=status.HTTP_200_OK)
 
@@ -93,7 +98,7 @@ class GetAllActiveSessionsView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        tokens = Token.objects.filter(user=request.user)
+        tokens = CustomObtainToken.objects.filter(user=request.user)
         if not tokens.exists():
             return Response({"detail": "No active sessions found."}, status=status.HTTP_404_NOT_FOUND)
 
