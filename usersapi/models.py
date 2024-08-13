@@ -1,4 +1,5 @@
 import hashlib
+import secrets
 
 from django.db import models
 from django.conf import settings
@@ -17,8 +18,15 @@ class CustomObtainToken(models.Model):
         return super().save(*args, **kwargs)
 
     def generate_key(self):
-        raw_key = f"{self.user}{self.user_agent}{self.ip_address}"
-        return hashlib.sha1(raw_key.encode()).hexdigest()
+        while True:
+            random_string = secrets.token_bytes(20)
+            raw_key = f"{self.user}{self.user_agent}{self.ip_address}{random_string}"
+            token = hashlib.sha256(raw_key.encode()).hexdigest()
+
+            if not CustomObtainToken.objects.filter(key=token).exists():
+                break
+
+        return token
 
     def __str__(self):
         return f"{self.user} - {self.key}"

@@ -1,7 +1,6 @@
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 from rest_framework import generics, permissions, status
-from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
@@ -39,8 +38,12 @@ class LogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
+        user_agent = request.META.get("HTTP_USER_AGENT")
+        user_ip_addr = request.META.get("REMOTE_ADDR")
         try:
-            token = CustomObtainToken.objects.get(user=request.user)
+            token = CustomObtainToken.objects.get(
+                user=request.user, user_agent=user_agent, ip_address=user_ip_addr
+            )
             token.delete()
 
             return Response({"detail": "Successfully logged out."}, status=status.HTTP_200_OK)
@@ -76,22 +79,32 @@ class RotateTokenView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        header_token = request.headers.get("Authorization").split()[1]
-        if not header_token:
-            return Response({"detail": "The token has not been transferred."}, status=status.HTTP_400_BAD_REQUEST)
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Token "):
+            return Response(
+                {"detail": "Authorization header is missing or invalid."}, status=status.HTTP_400_BAD_REQUEST
+            )
 
+        header_token = auth_header.split()[1]
         try:
-            token = CustomObtainToken.objects.get(user=request.user)
+            user_agent = request.META.get("HTTP_USER_AGENT")
+            user_ip_addr = request.META.get("REMOTE_ADDR")
+            token = CustomObtainToken.objects.get(user=request.user, user_agent=user_agent, ip_address=user_ip_addr)
+
             if header_token == token.key:
                 token.delete()
-                new_token = CustomObtainToken.objects.create(user=request.user)
+                new_token = CustomObtainToken.objects.create(
+                    user=request.user, user_agent=user_agent, ip_address=user_ip_addr
+                )
 
-                return Response({"New token": new_token.key}, status=status.HTTP_200_OK)
+                return Response({"new_token": new_token.key}, status=status.HTTP_200_OK)
+            else:
+                return Response(
+                    {"detail": "Provided token does not match the user's token."}, status=status.HTTP_400_BAD_REQUEST
+                )
 
-        except Token.DoesNotExist:
+        except CustomObtainToken.DoesNotExist:
             return Response({"detail": "Token does not exist."}, status=status.HTTP_404_NOT_FOUND)
-
-        return Response({"detail": "Bad request"}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class GetAllActiveSessionsView(APIView):
