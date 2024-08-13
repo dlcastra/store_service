@@ -20,7 +20,6 @@ class LoginWithObtainAuthToken(APIView):
         username = request.data.get("username")
         password = request.data.get("password")
         user = authenticate(username=username, password=password)
-        print(user)
 
         user_agent = request.META.get("HTTP_USER_AGENT")
         ip_addr = request.META.get("REMOTE_ADDR")
@@ -41,9 +40,7 @@ class LogoutView(APIView):
         user_agent = request.META.get("HTTP_USER_AGENT")
         user_ip_addr = request.META.get("REMOTE_ADDR")
         try:
-            token = CustomObtainToken.objects.get(
-                user=request.user, user_agent=user_agent, ip_address=user_ip_addr
-            )
+            token = CustomObtainToken.objects.get(user=request.user, user_agent=user_agent, ip_address=user_ip_addr)
             token.delete()
 
             return Response({"detail": "Successfully logged out."}, status=status.HTTP_200_OK)
@@ -117,3 +114,29 @@ class GetAllActiveSessionsView(APIView):
 
         sessions = [{"token": token.key, "created_at": token.created} for token in tokens]
         return Response({"sessions": sessions}, status=status.HTTP_200_OK)
+
+
+class DeleteAnotherTokensView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        auth_header = request.headers.get("Authorization")
+        if not auth_header:
+            return Response({"detail": "Missed authorization token."}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            header_token = auth_header.split(" ")[1]
+            __token_exist = CustomObtainToken.objects.get(key=header_token, user=request.user)
+
+            another_user_tokens = CustomObtainToken.objects.filter(user=request.user).exclude(key=header_token)
+            if another_user_tokens.exists():
+                return Response({"detail": "You have only one active token."}, status=status.HTTP_200_OK)
+            else:
+                another_user_tokens.delete()
+                return Response({"detail": "Other tokens deleted successfully."})
+
+        except CustomObtainToken.DoesNotExist:
+            return Response({"detail": "Token does not exist."}, status=status.HTTP_404_NOT_FOUND)
+
+        except Exception as e:
+            return Response({"detail": f"An error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
