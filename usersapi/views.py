@@ -9,7 +9,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 
 from usersapi import paginations
 from usersapi import serializers
-from usersapi.filters import DateContainsFilter, CustomTokenFilter
+from usersapi.filters import CustomTokenFilter
 from usersapi.models import CustomObtainToken
 from usersapi.serializers import CustomObtainTokenSerializer
 
