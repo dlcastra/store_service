@@ -5,6 +5,7 @@ from usersapi import views
 
 router = routers.DefaultRouter()
 router.register(r"register", views.RegisterView, basename="register"),
+router.register(r"edit-user-data", views.EditUserDataView, basename="edit_user_data"),
 
 urlpatterns = router.urls
 

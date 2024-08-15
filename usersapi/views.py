@@ -49,6 +49,15 @@ class LogoutView(APIView):
             return Response({"detail": "Token not found."}, status=status.HTTP_404_NOT_FOUND)
 
 
+class EditUserDataView(generics.RetrieveUpdateAPIView, GenericViewSet):
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = User.objects.all()
+    serializer_class = serializers.UserSerializer
+
+    def get_object(self):
+        return self.request.user
+
+
 class DeleteAccountView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
