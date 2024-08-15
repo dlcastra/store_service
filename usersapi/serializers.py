@@ -3,6 +3,8 @@ from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
+from usersapi.models import CustomObtainToken
+
 
 class RegisterSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(required=True, validators=[UniqueValidator(queryset=User.objects.all())])
@@ -41,3 +43,9 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ["username", "email", "first_name", "last_name"]
+
+
+class CustomObtainTokenSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomObtainToken
+        fields = ["key", "created", "user_agent"]

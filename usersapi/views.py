@@ -4,9 +4,14 @@ from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
+from rest_framework import filters
+from django_filters.rest_framework import DjangoFilterBackend
 
+from usersapi import paginations
 from usersapi import serializers
+from usersapi.filters import DateContainsFilter, CustomTokenFilter
 from usersapi.models import CustomObtainToken
+from usersapi.serializers import CustomObtainTokenSerializer
 
 
 class RegisterView(generics.CreateAPIView, GenericViewSet):
@@ -113,11 +118,20 @@ class RotateTokenView(APIView):
             return Response({"detail": "Token does not exist."}, status=status.HTTP_404_NOT_FOUND)
 
 
-class GetAllActiveSessionsView(APIView):
+class GetAllActiveSessionsView(generics.ListAPIView, GenericViewSet):
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = paginations.OnlyFiveElementsPagination
+    serializer_class = CustomObtainTokenSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_class = CustomTokenFilter
 
-    def get(self, request):
-        tokens = CustomObtainToken.objects.filter(user=request.user)
+    def get_queryset(self):
+        user = self.request.user
+        queryset = CustomObtainToken.objects.filter(user=user)
+        return queryset
+
+    def get(self, request, *args, **kwargs):
+        tokens = self.filter_queryset(self.get_queryset())
         if not tokens.exists():
             return Response({"detail": "No active sessions found."}, status=status.HTTP_404_NOT_FOUND)
 
