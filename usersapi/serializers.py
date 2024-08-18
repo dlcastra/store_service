@@ -1,3 +1,6 @@
+import hashlib
+import secrets
+
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
@@ -49,3 +52,14 @@ class CustomObtainTokenSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomObtainToken
         fields = ["key", "created", "user_agent"]
+
+    def to_representation(self, instance):
+        header_token = self.context.get("header_token")
+        ret = super().to_representation(instance)
+        random_string = secrets.token_bytes(20)
+        raw_key = f"{random_string}{instance.key}{random_string}"
+
+        if instance.key != header_token:
+            ret["key"] = hashlib.sha256(raw_key.encode()).hexdigest()
+
+        return ret

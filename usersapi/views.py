@@ -1,5 +1,8 @@
+from datetime import timedelta
+
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
+from django.utils import timezone
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -127,16 +130,17 @@ class GetAllActiveSessionsView(generics.ListAPIView, GenericViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        queryset = CustomObtainToken.objects.filter(user=user)
+        queryset = CustomObtainToken.objects.filter(user=user).order_by("created")
         return queryset
 
-    def get(self, request, *args, **kwargs):
-        tokens = self.filter_queryset(self.get_queryset())
-        if not tokens.exists():
-            return Response({"detail": "No active sessions found."}, status=status.HTTP_404_NOT_FOUND)
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        auth_header = self.request.headers.get("Authorization")
+        if auth_header:
+            header_token = auth_header.split(" ")[1]
+            context["header_token"] = header_token
 
-        sessions = [{"token": token.key, "created_at": token.created} for token in tokens]
-        return Response({"sessions": sessions}, status=status.HTTP_200_OK)
+        return context
 
 
 class DeleteAnotherTokensView(APIView):
@@ -149,14 +153,17 @@ class DeleteAnotherTokensView(APIView):
 
         try:
             header_token = auth_header.split(" ")[1]
-            __token_exist = CustomObtainToken.objects.get(key=header_token, user=request.user)
-
             another_user_tokens = CustomObtainToken.objects.filter(user=request.user).exclude(key=header_token)
+            __token_exist = CustomObtainToken.objects.get(key=header_token, user=request.user)
+            token_age = timezone.now() - __token_exist.created
+
+            if token_age < timedelta(days=3):
+                return Response({"detail": "Invalid token age."}, status=status.HTTP_400_BAD_REQUEST)
+
             if another_user_tokens.exists():
-                return Response({"detail": "You have only one active token."}, status=status.HTTP_200_OK)
-            else:
                 another_user_tokens.delete()
                 return Response({"detail": "Other tokens deleted successfully."})
+            return Response({"detail": "You have only one active token."}, status=status.HTTP_200_OK)
 
         except CustomObtainToken.DoesNotExist:
             return Response({"detail": "Token does not exist."}, status=status.HTTP_404_NOT_FOUND)
