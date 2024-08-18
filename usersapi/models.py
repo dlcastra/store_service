@@ -7,7 +7,7 @@ from django.conf import settings
 
 class CustomObtainToken(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-    key = models.CharField(max_length=40, primary_key=True)
+    key = models.CharField(max_length=64, unique=True)
     created = models.DateTimeField(auto_now_add=True)
     user_agent = models.CharField(max_length=255)
     ip_address = models.GenericIPAddressField(blank=True, null=True)
