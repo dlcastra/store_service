@@ -49,9 +49,10 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class CustomObtainTokenSerializer(serializers.ModelSerializer):
+
     class Meta:
         model = CustomObtainToken
-        fields = ["key", "created", "user_agent"]
+        fields = ["id", "key", "created", "user_agent"]
 
     def to_representation(self, instance):
         header_token = self.context.get("header_token")

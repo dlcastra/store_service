@@ -16,6 +16,8 @@ from usersapi.filters import CustomTokenFilter
 from usersapi.models import CustomObtainToken
 from usersapi.serializers import CustomObtainTokenSerializer
 
+""" --- Registration | Login | Logout """
+
 
 class RegisterView(generics.CreateAPIView, GenericViewSet):
     queryset = User.objects.all()
@@ -24,6 +26,7 @@ class RegisterView(generics.CreateAPIView, GenericViewSet):
 
 
 class LoginWithObtainAuthToken(APIView):
+    # Need to change: status for token ACTIVE after login of account
     def post(self, request, *args, **kwargs):
         username = request.data.get("username")
         password = request.data.get("password")
@@ -44,6 +47,7 @@ class LoginWithObtainAuthToken(APIView):
 class LogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
+    # Need to change: status for token NOT active after logout of account
     def post(self, request):
         user_agent = request.META.get("HTTP_USER_AGENT")
         user_ip_addr = request.META.get("REMOTE_ADDR")
@@ -57,6 +61,9 @@ class LogoutView(APIView):
             return Response({"detail": "Token not found."}, status=status.HTTP_404_NOT_FOUND)
 
 
+""" --- Edit views --- """
+
+
 class EditUserDataView(generics.RetrieveUpdateAPIView, GenericViewSet):
     permission_classes = [permissions.IsAuthenticated]
     queryset = User.objects.all()
@@ -64,29 +71,6 @@ class EditUserDataView(generics.RetrieveUpdateAPIView, GenericViewSet):
 
     def get_object(self):
         return self.request.user
-
-
-class DeleteAccountView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request):
-        header_token = request.headers.get("Authorization").split()[1]
-
-        if not header_token:
-            return Response({"detail": "The token has not been transferred."}, status=status.HTTP_400_BAD_REQUEST)
-
-        try:
-            token = CustomObtainToken.objects.get(user=request.user)
-            if header_token == token.key:
-                user = User.objects.get(username=request.user.username)
-                user.delete()
-
-                return Response({"detail": "Successfully deleted account."}, status=status.HTTP_200_OK)
-
-        except CustomObtainToken.DoesNotExist:
-            return Response({"detail": "Token does not exist."}, status=status.HTTP_404_NOT_FOUND)
-
-        return Response({"detail": "Bad request"}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class RotateTokenView(APIView):
@@ -121,6 +105,9 @@ class RotateTokenView(APIView):
             return Response({"detail": "Token does not exist."}, status=status.HTTP_404_NOT_FOUND)
 
 
+""" --- Get views --- """
+
+
 class GetAllActiveSessionsView(generics.ListAPIView, GenericViewSet):
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = paginations.OnlyFiveElementsPagination
@@ -141,6 +128,32 @@ class GetAllActiveSessionsView(generics.ListAPIView, GenericViewSet):
             context["header_token"] = header_token
 
         return context
+
+
+""" --- Delete views --- """
+
+
+class DeleteAccountView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        header_token = request.headers.get("Authorization").split()[1]
+
+        if not header_token:
+            return Response({"detail": "The token has not been transferred."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            token = CustomObtainToken.objects.get(user=request.user, user_agent=request.META.get("HTTP_USER_AGENT"))
+            if header_token == token.key:
+                user = User.objects.get(username=request.user.username)
+                user.delete()
+
+                return Response({"detail": "Successfully deleted account."}, status=status.HTTP_200_OK)
+
+        except CustomObtainToken.DoesNotExist:
+            return Response({"detail": "Token does not exist."}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response({"detail": "Bad request"}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class DeleteAnotherTokensView(APIView):
