@@ -11,6 +11,7 @@ class CustomObtainToken(models.Model):
     created = models.DateTimeField(auto_now_add=True)
     user_agent = models.CharField(max_length=255)
     ip_address = models.GenericIPAddressField(blank=True, null=True)
+    status = models.CharField(max_length=15, default="Online", null=False)
 
     def save(self, *args, **kwargs):
         if not self.key:

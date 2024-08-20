@@ -13,6 +13,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from usersapi import paginations
 from usersapi import serializers
 from usersapi.filters import CustomTokenFilter
+from usersapi.helpers import generate_key
 from usersapi.models import CustomObtainToken
 from usersapi.serializers import CustomObtainTokenSerializer
 
@@ -26,7 +27,6 @@ class RegisterView(generics.CreateAPIView, GenericViewSet):
 
 
 class LoginWithObtainAuthToken(APIView):
-    # Need to change: status for token ACTIVE after login of account
     def post(self, request, *args, **kwargs):
         username = request.data.get("username")
         password = request.data.get("password")
@@ -40,6 +40,9 @@ class LoginWithObtainAuthToken(APIView):
             user_agent=user_agent,
             ip_address=ip_addr,
         )
+        if token:
+            token.status = "Online"
+            token.save()
 
         return Response({"Token": token.key, "user_agent": token.user_agent}, status=status.HTTP_200_OK)
 
@@ -47,13 +50,13 @@ class LoginWithObtainAuthToken(APIView):
 class LogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
-    # Need to change: status for token NOT active after logout of account
     def post(self, request):
         user_agent = request.META.get("HTTP_USER_AGENT")
         user_ip_addr = request.META.get("REMOTE_ADDR")
         try:
             token = CustomObtainToken.objects.get(user=request.user, user_agent=user_agent, ip_address=user_ip_addr)
-            token.delete()
+            token.status = "Offline"
+            token.save()
 
             return Response({"detail": "Successfully logged out."}, status=status.HTTP_200_OK)
 
@@ -78,6 +81,9 @@ class RotateTokenView(APIView):
 
     def post(self, request):
         auth_header = request.headers.get("Authorization")
+        user_agent = request.META.get("HTTP_USER_AGENT")
+        user_ip_addr = request.META.get("REMOTE_ADDR")
+
         if not auth_header or not auth_header.startswith("Token "):
             return Response(
                 {"detail": "Authorization header is missing or invalid."}, status=status.HTTP_400_BAD_REQUEST
@@ -85,20 +91,16 @@ class RotateTokenView(APIView):
 
         header_token = auth_header.split()[1]
         try:
-            user_agent = request.META.get("HTTP_USER_AGENT")
-            user_ip_addr = request.META.get("REMOTE_ADDR")
             token = CustomObtainToken.objects.get(user=request.user, user_agent=user_agent, ip_address=user_ip_addr)
+            if header_token == token.key and token.status == "Online":
+                token.key = generate_key(token)
+                token.save()
 
-            if header_token == token.key:
-                token.delete()
-                new_token = CustomObtainToken.objects.create(
-                    user=request.user, user_agent=user_agent, ip_address=user_ip_addr
-                )
-
-                return Response({"new_token": new_token.key}, status=status.HTTP_200_OK)
+                return Response({"new_token": token.key}, status=status.HTTP_200_OK)
             else:
                 return Response(
-                    {"detail": "Provided token does not match the user's token."}, status=status.HTTP_400_BAD_REQUEST
+                    {"detail": "Provided token does not match the user's token or token is Offline."},
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
         except CustomObtainToken.DoesNotExist:

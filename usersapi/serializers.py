@@ -52,7 +52,7 @@ class CustomObtainTokenSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CustomObtainToken
-        fields = ["id", "key", "created", "user_agent"]
+        fields = ["id", "key", "created", "user_agent", "status"]
 
     def to_representation(self, instance):
         header_token = self.context.get("header_token")
@@ -62,5 +62,7 @@ class CustomObtainTokenSerializer(serializers.ModelSerializer):
 
         if instance.key != header_token:
             ret["key"] = hashlib.sha256(raw_key.encode()).hexdigest()
+        if instance.status == "Online":
+            return ret
 
-        return ret
+        raise serializers.ValidationError({"key": "To see other tokens, the status of your token must be ONLINE"})
