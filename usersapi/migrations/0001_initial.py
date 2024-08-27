@@ -26,7 +26,7 @@ class Migration(migrations.Migration):
                         verbose_name="ID",
                     ),
                 ),
-                ("key", models.CharField(max_length=40)),
+                ("key", models.CharField(max_length=64)),
                 ("created", models.DateTimeField(auto_now_add=True)),
                 ("user_agent", models.CharField(max_length=255)),
                 ("ip_address", models.GenericIPAddressField(blank=True, null=True)),
