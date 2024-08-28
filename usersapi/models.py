@@ -1,8 +1,33 @@
 import hashlib
 import secrets
+from random import randint
 
+from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.conf import settings
+
+
+class CustomUser(AbstractUser):
+    amount_bonuses = models.IntegerField(default=0)
+    amount_invitations = models.IntegerField(default=0)
+    invitation_code = models.CharField(max_length=150, default="")
+    user_own_invite_code = models.CharField(max_length=15)
+
+    def save(self, *args, **kwargs):
+        if not self.user_own_invite_code:
+            self.user_own_invite_code = self.generate_user_invite_code()
+        return super().save(*args, **kwargs)
+
+    def generate_user_invite_code(self):
+        while True:
+            range_start = 10 ** (15 - 1)
+            range_end = (10**15) - 1
+            invite_code = randint(range_start, range_end)
+
+            if not CustomUser.objects.filter(user_own_invite_code=invite_code).exists():
+                break
+
+        return invite_code
 
 
 class CustomObtainToken(models.Model):

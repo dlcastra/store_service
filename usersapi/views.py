@@ -1,27 +1,26 @@
 from datetime import timedelta
 
 from django.contrib.auth import authenticate
-from django.contrib.auth.models import User
 from django.utils import timezone
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
-from rest_framework import filters
-from django_filters.rest_framework import DjangoFilterBackend
 
 from usersapi import paginations
 from usersapi import serializers
 from usersapi.filters import CustomTokenFilter
 from usersapi.helpers import generate_key
-from usersapi.models import CustomObtainToken
+from usersapi.models import CustomObtainToken, CustomUser
 from usersapi.serializers import CustomObtainTokenSerializer
 
 """ --- Registration | Login | Logout """
 
 
 class RegisterView(generics.CreateAPIView, GenericViewSet):
-    queryset = User.objects.all()
+    queryset = CustomUser.objects.all()
     permission_classes = [permissions.AllowAny]
     serializer_class = serializers.RegisterSerializer
 
@@ -69,7 +68,7 @@ class LogoutView(APIView):
 
 class EditUserDataView(generics.RetrieveUpdateAPIView, GenericViewSet):
     permission_classes = [permissions.IsAuthenticated]
-    queryset = User.objects.all()
+    queryset = CustomUser.objects.all()
     serializer_class = serializers.UserSerializer
 
     def get_object(self):
@@ -147,7 +146,7 @@ class DeleteAccountView(APIView):
         try:
             token = CustomObtainToken.objects.get(user=request.user, user_agent=request.META.get("HTTP_USER_AGENT"))
             if header_token == token.key:
-                user = User.objects.get(username=request.user.username)
+                user = CustomUser.objects.get(username=request.user.username)
                 user.delete()
 
                 return Response({"detail": "Successfully deleted account."}, status=status.HTTP_200_OK)
