@@ -12,10 +12,11 @@ class RegisterSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(required=True, validators=[UniqueValidator(queryset=CustomUser.objects.all())])
     password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
     password2 = serializers.CharField(write_only=True, required=True)
+    referral_code = serializers.CharField(write_only=True, required=False)
 
     class Meta:
         model = CustomUser
-        fields = ["username", "password", "password2", "email", "first_name", "last_name"]
+        fields = ["username", "password", "password2", "email", "first_name", "last_name", "referral_code"]
         extra_kwargs = {
             "first_name": {"required": True},
             "last_name": {"required": True},
@@ -34,8 +35,20 @@ class RegisterSerializer(serializers.ModelSerializer):
             first_name=validated_data["first_name"],
             last_name=validated_data["last_name"],
         )
-
         user.set_password(validated_data["password"])
+
+        referral_code = validated_data.get("referral_code")
+        referrer = CustomUser.objects.get(user_own_invite_code=referral_code)
+        if referrer:
+            user.referral_code = referral_code
+            user.amount_bonuses = 50
+            referrer.amount_bonuses += 100
+            referrer.amount_invitations += 1
+
+            referrer.save()
+        elif not referrer and referral_code is not None:
+            raise serializers.ValidationError({"referral_code": "Invalid referral code."})
+
         user.save()
 
         return user

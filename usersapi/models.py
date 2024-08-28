@@ -10,7 +10,7 @@ from django.conf import settings
 class CustomUser(AbstractUser):
     amount_bonuses = models.IntegerField(default=0)
     amount_invitations = models.IntegerField(default=0)
-    invitation_code = models.CharField(max_length=150, default="")
+    referral_code = models.CharField(max_length=150, default="")
     user_own_invite_code = models.CharField(max_length=15)
 
     def save(self, *args, **kwargs):
