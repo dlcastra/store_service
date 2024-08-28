@@ -16,4 +16,6 @@ urlpatterns += [
     path("delete-account/", views.DeleteAccountView.as_view(), name="delete_account"),
     path("get-new-token/", views.RotateTokenView.as_view(), name="get_new_token"),
     path("delete-another-tokens/", views.DeleteAnotherTokensView.as_view(), name="delete_another_tokens"),
+    # WALLET
+    path("connect-wallet/", views.ConnectWalletView.as_view(), name="connect_wallet"),
 ]

@@ -13,7 +13,7 @@ from usersapi import paginations
 from usersapi import serializers
 from usersapi.filters import CustomTokenFilter
 from usersapi.helpers import generate_key
-from usersapi.models import CustomObtainToken, CustomUser
+from usersapi.models import CustomObtainToken, CustomUser, Wallet
 from usersapi.serializers import CustomObtainTokenSerializer
 
 """ --- Registration | Login | Logout """
@@ -184,3 +184,31 @@ class DeleteAnotherTokensView(APIView):
 
         except Exception as e:
             return Response({"detail": f"An error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+""" --- WALLET --- """
+
+
+class ConnectWalletView(APIView):
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+
+    def get(self, request):
+        return Response(
+            {"message": "To connect a wallet, specify your token in the body of the request or send POST request"},
+            status=status.HTTP_200_OK,
+        )
+
+    def post(self, request):
+        user_bonuses = CustomUser.objects.get(username=request.user.username)
+        wallet, created = Wallet.objects.get_or_create(user=request.user, wallet_balance=user_bonuses.amount_bonuses)
+
+        if not created:
+            return Response(
+                {"message": f"You already have a wallet\nWallet address: {wallet.address}"},
+                status=status.HTTP_200_OK,
+            )
+
+        user_bonuses.amount_bonuses = 0
+        user_bonuses.save()
+
+        return Response({"message": f"Your wallet address: {wallet.address}"}, status=status.HTTP_201_CREATED)
