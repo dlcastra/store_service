@@ -56,61 +56,86 @@ class WalletToWallerTransactionView(APIView):
 
     def post(self, request):
         request_user_from = request.user
+        wallet_addr_to = request.data.get("wallet_addr_to")
+        amount = request.data.get("amount")
+
+        # GET DATA FROM REQUEST
         if "wallet_addr_to" not in request.data:
-            return Response(
-                {"message": "To make transaction you must provide wallet address in 'wallet_addr_to'!"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return self._error_response("To make transaction you must provide wallet address in 'wallet_addr_to'!")
 
         if "amount" not in request.data:
-            return Response(
-                {"error": "To make transaction you must provide amount"}, status=status.HTTP_400_BAD_REQUEST
-            )
+            return self._error_response("To make a transaction, you must provide the amount.")
 
-        try:
-            wallet_from = Wallet.objects.get(user=request_user_from)
-            wallet_addr_from = wallet_from.address
-        except Wallet.DoesNotExist:
+        # CHECK WALLET FROM
+        wallet_from = self._get_wallet_from_user(request_user_from)
+        if not wallet_from:
             return Response(
-                {"error": "To make WalletToWallet transaction you need to create a wallet"},
+                {"error": "To make Wallet-To-Wallet transaction you need to create a wallet"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        wallet_addr_to = request.data.get("wallet_addr_to")
-        if wallet_addr_from == wallet_addr_to:
+        if wallet_from.address == wallet_addr_to:
             return Response({"error": "Cannot transfer to the same wallet"}, status=status.HTTP_400_BAD_REQUEST)
 
-        try:
-            wallet_to = Wallet.objects.get(address=wallet_addr_to)
-            user_id_in_wallet = wallet_to.user_id
-            user_to = CustomUser.objects.get(id=user_id_in_wallet)
-        except (Wallet.DoesNotExist, IntegrityError):
+        # CHECK WALLET TO
+        wallet_to, user_to = self._get_wallet_to_and_user_to(wallet_addr_to)
+        if not wallet_to or not user_to:
             return Response({"error": "Enter valid wallet address"}, status=status.HTTP_400_BAD_REQUEST)
 
+        # CHECK AMOUNT AND WALLET BALANCE
+        validated_amount = self._validate_amount(amount)
+        if validated_amount is None:
+            return self._error_response("Enter a valid amount. Ex: 1.00")
+
+        if wallet_from.wallet_balance < validated_amount:
+            return self._error_response("Insufficient funds in wallet.")
+
+        # CREATE AND SAVE TRANSACTION
+        self._perform_transaction(request_user_from, user_to, wallet_from, wallet_to, validated_amount)
+        return Response(
+            {"message": "Transaction was successful", "Your balance": wallet_from.wallet_balance},
+            status=status.HTTP_201_CREATED,
+        )
+
+    def _error_response(self, message):
+        return Response({"error": message}, status=status.HTTP_400_BAD_REQUEST)
+
+    def _get_wallet_from_user(self, user):
         try:
-            amount = Decimal(request.data.get("amount"))
-        except (ValueError, InvalidOperation):
-            return Response({"error": "Enter valid amount. Ex: 1.00"}, status=status.HTTP_400_BAD_REQUEST)
+            return Wallet.objects.get(user=user)
+        except Wallet.DoesNotExist:
+            return None
 
-        if amount <= 0:
-            return Response({"error": "Amount must be greater than zero"}, status=status.HTTP_400_BAD_REQUEST)
+    def _get_wallet_to_and_user_to(self, wallet_addr_to):
+        try:
+            wallet_to = Wallet.objects.get(address=wallet_addr_to)
+            user_to = CustomUser.objects.get(id=wallet_to.user_id)
+            return wallet_to, user_to
 
-        if wallet_from.wallet_balance >= amount:
-            with transaction.atomic():
-                wallet_from.wallet_balance -= amount
-                wallet_to.wallet_balance += amount
-                wallet_from.save()
-                wallet_to.save()
+        except (Wallet.DoesNotExist, IntegrityError):
+            return None, None
 
-                WalletToWalletTransaction.objects.create(
-                    user_from=request_user_from,
-                    user_to=user_to,
-                    wallet_addr_from=wallet_addr_from,
-                    wallet_addr_to=wallet_addr_to,
-                    amount=amount,
-                )
-                return Response(
-                    {"message": "Transaction was successful", "Your balance": wallet_from.wallet_balance},
-                    status=status.HTTP_201_CREATED,
-                )
-        return Response({"error": "Insufficient funds in wallet"}, status=status.HTTP_400_BAD_REQUEST)
+    def _validate_amount(self, amount):
+        try:
+            amount = Decimal(amount)
+            if amount <= 0:
+                return None
+            return amount
+
+        except (ValueError, TypeError, InvalidOperation):
+            return None
+
+    def _perform_transaction(self, user_from, user_to, wallet_from, wallet_to, amount):
+        with transaction.atomic():
+            wallet_from.wallet_balance -= amount
+            wallet_to.wallet_balance += amount
+            wallet_from.save()
+            wallet_to.save()
+
+            WalletToWalletTransaction.objects.create(
+                user_from=user_from,
+                user_to=user_to,
+                wallet_addr_from=wallet_from.address,
+                wallet_addr_to=wallet_to,
+                amount=amount,
+            )
