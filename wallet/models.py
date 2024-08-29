@@ -1,4 +1,5 @@
 import secrets
+import uuid
 
 from django.db import models
 
@@ -6,9 +7,9 @@ from core import settings
 
 
 class Wallet(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="user_wallet")
     address = models.CharField(max_length=64, unique=True, db_index=True)
-    wallet_balance = models.IntegerField(default=0)
+    wallet_balance = models.DecimalField(max_digits=15, decimal_places=2, default=0.00)
 
     def save(self, *args, **kwargs):
         if not self.address:
@@ -33,3 +34,25 @@ class Wallet(models.Model):
                 break
 
         return unique_keys[0]
+
+
+class WalletToWalletTransaction(models.Model):
+    transaction_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    user_from = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="user_from")
+    user_to = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="user_to")
+    wallet_addr_from = models.CharField(max_length=64)
+    wallet_addr_to = models.CharField(max_length=64)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=3, default="USD")
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(check=~models.Q(user_from=models.F("user_to")), name="prevent_self_transfer"),
+            models.CheckConstraint(
+                check=~models.Q(wallet_addr_from=models.F("wallet_addr_to")), name="prevent_same_wallet_transfer"
+            ),
+        ]
+
+    def __str__(self):
+        return f"Transaction {self.transaction_id} from {self.wallet_addr_from} to {self.wallet_addr_to}"
