@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     # CUSTOM APPS
     "storeapi.apps.StoreapiConfig",
     "usersapi.apps.UsersapiConfig",
+    "wallet.apps.WalletConfig",
     # BASE
     "django.contrib.admin",
     "django.contrib.auth",
