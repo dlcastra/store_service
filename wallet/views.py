@@ -69,18 +69,15 @@ class WalletToWallerTransactionView(APIView):
         # CHECK WALLET FROM
         wallet_from = self._get_wallet_from_user(request_user_from)
         if not wallet_from:
-            return Response(
-                {"error": "To make Wallet-To-Wallet transaction you need to create a wallet"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            return self._error_response({"error": "To make Wallet-To-Wallet transaction you need to create a wallet"})
 
         if wallet_from.address == wallet_addr_to:
-            return Response({"error": "Cannot transfer to the same wallet"}, status=status.HTTP_400_BAD_REQUEST)
+            return self._error_response({"error": "Cannot transfer to the same wallet"})
 
         # CHECK WALLET TO
         wallet_to, user_to = self._get_wallet_to_and_user_to(wallet_addr_to)
         if not wallet_to or not user_to:
-            return Response({"error": "Enter valid wallet address"}, status=status.HTTP_400_BAD_REQUEST)
+            return self._error_response({"error": "Enter valid wallet address"})
 
         # CHECK AMOUNT AND WALLET BALANCE
         validated_amount = self._validate_amount(amount)
