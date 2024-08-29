@@ -133,6 +133,6 @@ class WalletToWallerTransactionView(APIView):
                 user_from=user_from,
                 user_to=user_to,
                 wallet_addr_from=wallet_from.address,
-                wallet_addr_to=wallet_to,
+                wallet_addr_to=wallet_to.address,
                 amount=amount,
             )
