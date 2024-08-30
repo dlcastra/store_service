@@ -138,3 +138,6 @@ REST_FRAMEWORK = {
         "core.authentication.CustomObtainTokenAuthentication",
     ]
 }
+
+# cryptography
+ENCRYPTION_KEY = config("ENCRYPTION_KEY")

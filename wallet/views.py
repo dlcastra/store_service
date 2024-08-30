@@ -2,13 +2,16 @@ from decimal import Decimal, InvalidOperation
 
 from django.db import transaction
 from django.db.utils import IntegrityError
+from django.utils import timezone
 from rest_framework import permissions, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from usersapi.models import CustomUser
+from wallet.constants import MAX_TRANSACTION_AMOUNT, MIN_TRANSACTION_AMOUNT
 from wallet.models import Wallet, WalletToWalletTransaction
+from wallet.utils import encrypt_data
 
 """ --- WALLET --- """
 
@@ -84,10 +87,17 @@ class WalletToWallerTransactionView(APIView):
         if validated_amount is None:
             return self._error_response("Enter a valid amount. Ex: 1.00")
 
+        if validated_amount > MAX_TRANSACTION_AMOUNT:
+            return self._error_response("Maximum amount of transactions 100000.00")
+
+        if validated_amount < MIN_TRANSACTION_AMOUNT:
+            return self._error_response("Minimum amount of transactions 10.00")
+
         if wallet_from.wallet_balance < validated_amount:
             return self._error_response("Insufficient funds in wallet.")
 
         # CREATE AND SAVE TRANSACTION
+        self._check_transaction_duplicate(request_user_from, user_to, wallet_from, wallet_to, validated_amount)
         self._perform_transaction(request_user_from, user_to, wallet_from, wallet_to, validated_amount)
         return Response(
             {"message": "Transaction was successful", "Your balance": wallet_from.wallet_balance},
@@ -123,16 +133,31 @@ class WalletToWallerTransactionView(APIView):
             return None
 
     def _perform_transaction(self, user_from, user_to, wallet_from, wallet_to, amount):
-        with transaction.atomic():
-            wallet_from.wallet_balance -= amount
-            wallet_to.wallet_balance += amount
-            wallet_from.save()
-            wallet_to.save()
+        try:
+            with transaction.atomic():
+                wallet_from.wallet_balance -= amount
+                wallet_to.wallet_balance += amount
+                wallet_from.save()
+                wallet_to.save()
 
-            WalletToWalletTransaction.objects.create(
-                user_from=user_from,
-                user_to=user_to,
-                wallet_addr_from=wallet_from.address,
-                wallet_addr_to=wallet_to.address,
-                amount=amount,
-            )
+                WalletToWalletTransaction.objects.create(
+                    user_from=user_from,
+                    user_to=user_to,
+                    wallet_addr_from=encrypt_data(wallet_from.address),
+                    wallet_addr_to=encrypt_data(wallet_to.address),
+                    amount=amount,
+                )
+        except Exception as e:
+            transaction.rollback()
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    def _check_transaction_duplicate(self, user_from, user_to, wallet_from, wallet_to, amount):
+        recent_transaction = WalletToWalletTransaction.objects.filter(
+            user_from=user_from,
+            user_to=user_to,
+            wallet_addr_from=encrypt_data(wallet_from.address),
+            wallet_addr_to=encrypt_data(wallet_to.address),
+            amount=amount,
+        ).order_by('-timestamp').first()
+        if recent_transaction and (timezone.now() - recent_transaction.timestamp).total_seconds() < 60:
+            self._error_response("Duplicate transaction detected. Please wait before retrying.")
