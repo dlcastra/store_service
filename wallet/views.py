@@ -3,14 +3,17 @@ from decimal import Decimal, InvalidOperation
 from django.db import transaction
 from django.db.utils import IntegrityError
 from django.utils import timezone
-from rest_framework import permissions, status
+from rest_framework import permissions, status, generics
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.viewsets import GenericViewSet
 
 from usersapi.models import CustomUser
 from wallet.constants import MAX_TRANSACTION_AMOUNT, MIN_TRANSACTION_AMOUNT
 from wallet.models import Wallet, WalletToWalletTransaction
+from wallet.paginations import TransactionPagination
+from wallet.serializers import TransactionHistorySerializer
 from wallet.utils import encrypt_data
 
 """ --- WALLET --- """
@@ -52,6 +55,18 @@ class GetWalletInfoView(APIView):
         return Response(
             {"wallet address": wallet.address, "wallet balance": wallet.wallet_balance}, status=status.HTTP_200_OK
         )
+
+
+class GetWalletTransactionHistoryView(generics.ListAPIView, GenericViewSet):
+    permission_classes = [permissions.IsAuthenticated]
+    pagination_class = TransactionPagination
+    serializer_class = TransactionHistorySerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        transactions = WalletToWalletTransaction.objects.filter(user_from=user).order_by("-timestamp")
+
+        return transactions
 
 
 class WalletToWallerTransactionView(APIView):
