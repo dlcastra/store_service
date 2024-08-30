@@ -152,12 +152,16 @@ class WalletToWallerTransactionView(APIView):
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     def _check_transaction_duplicate(self, user_from, user_to, wallet_from, wallet_to, amount):
-        recent_transaction = WalletToWalletTransaction.objects.filter(
-            user_from=user_from,
-            user_to=user_to,
-            wallet_addr_from=encrypt_data(wallet_from.address),
-            wallet_addr_to=encrypt_data(wallet_to.address),
-            amount=amount,
-        ).order_by('-timestamp').first()
+        recent_transaction = (
+            WalletToWalletTransaction.objects.filter(
+                user_from=user_from,
+                user_to=user_to,
+                wallet_addr_from=encrypt_data(wallet_from.address),
+                wallet_addr_to=encrypt_data(wallet_to.address),
+                amount=amount,
+            )
+            .order_by("-timestamp")
+            .first()
+        )
         if recent_transaction and (timezone.now() - recent_transaction.timestamp).total_seconds() < 60:
             self._error_response("Duplicate transaction detected. Please wait before retrying.")
