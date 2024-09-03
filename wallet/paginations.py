@@ -14,10 +14,8 @@ class TransactionPagination(PageNumberPagination):
         return self.page
 
     def group_transactions_by_year_and_month(self, transactions):
-        # Группируем транзакции по годам и месяцам
         grouped_data = defaultdict(lambda: defaultdict(list))
         for transaction in transactions:
-            # Конвертируем строку времени обратно в объект datetime
             timestamp = datetime.strptime(transaction["timestamp"], "%Y-%m-%d | %H:%M:%S")
             year = timestamp.year
             month = timestamp.month
