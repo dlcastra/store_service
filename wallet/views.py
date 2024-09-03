@@ -3,7 +3,8 @@ from decimal import Decimal, InvalidOperation
 from django.db import transaction
 from django.db.utils import IntegrityError
 from django.utils import timezone
-from rest_framework import permissions, status, generics
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import permissions, status, generics, filters
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -11,6 +12,7 @@ from rest_framework.viewsets import GenericViewSet
 
 from usersapi.models import CustomUser
 from wallet.constants import MAX_TRANSACTION_AMOUNT, MIN_TRANSACTION_AMOUNT
+from wallet.filters import TransactionsFilter
 from wallet.models import Wallet, WalletToWalletTransaction
 from wallet.paginations import TransactionPagination
 from wallet.serializers import TransactionHistorySerializer
@@ -61,6 +63,8 @@ class GetWalletTransactionHistoryView(generics.ListAPIView, GenericViewSet):
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = TransactionPagination
     serializer_class = TransactionHistorySerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_class = TransactionsFilter
 
     def get_queryset(self):
         user = self.request.user
