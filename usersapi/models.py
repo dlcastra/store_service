@@ -6,6 +6,8 @@ from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
+from storeapi.models import Product
+
 
 class CustomUser(AbstractUser):
     amount_bonuses = models.IntegerField(default=0)
@@ -49,3 +51,8 @@ class CustomObtainToken(models.Model):
 
     def __str__(self):
         return f"{self.user} - {self.key}"
+
+
+class UserNFTBackpack(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="user_backpack")
+    products = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="user_products")
