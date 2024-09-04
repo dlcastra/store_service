@@ -1,13 +1,17 @@
+from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import filters
+from rest_framework import filters, status
 from rest_framework import permissions, generics
+from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
 
 from core import permissions as custom_permissions
 from storeapi.models import Product
 from storeapi.paginations import ProductPagination
 from storeapi.serializers import ProductSerializer, ProductListSerializer
-from usersapi.models import CustomObtainToken
+from usersapi.models import CustomObtainToken, UserNFTBackpack
+from wallet.mixins import WalletTransactionMixin
 
 
 class CreateProductView(generics.CreateAPIView, GenericViewSet):
@@ -38,3 +42,39 @@ class ProductListView(generics.ListAPIView, GenericViewSet):
         queryset = Product.objects.all().order_by("release_data")
 
         return queryset
+
+
+class BuyNFT(WalletTransactionMixin, APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        request_user = request.user
+        product_instance = get_object_or_404(Product, name=request.data.get("name"))
+        wallet_from = self._get_wallet_from_user(request_user)
+        wallet_to = self._get_wallet_from_user(product_instance.owner)
+        validated_amount = self._validate_amount(product_instance.price)
+
+        if not wallet_from:
+            return self._error_response({"error": "To make Wallet-To-Wallet transaction you need to create a wallet"})
+        if not wallet_to:
+            return self._error_response({"error": "The product owner has not connected the wallet "})
+        if product_instance.owner == request_user:
+            return self._error_response("You cannot buy your own product.")
+        if wallet_from.wallet_balance < validated_amount:
+            return self._error_response("Insufficient funds in wallet.")
+
+        self._check_transaction_duplicate(
+            request_user, product_instance.owner, wallet_from, wallet_to, validated_amount
+        )
+        self._perform_transaction(request_user, product_instance.owner, wallet_from, wallet_to, validated_amount)
+
+        user_backpack, created = UserNFTBackpack.objects.update_or_create(
+            products=product_instance, defaults={"user": request_user}
+        )
+        product_instance.owner = request_user
+        product_instance.save()
+
+        return Response(
+            {"message": "Transaction was successful", "Your balance": wallet_from.wallet_balance},
+            status=status.HTTP_201_CREATED,
+        )

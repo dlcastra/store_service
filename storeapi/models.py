@@ -10,3 +10,4 @@ class Product(models.Model):
     owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
     price = models.DecimalField(max_digits=12, decimal_places=2)
     release_data = models.DateTimeField(auto_now=True)
+    for_sale = models.BooleanField(default=True)

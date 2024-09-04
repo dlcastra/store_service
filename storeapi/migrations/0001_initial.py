@@ -27,7 +27,7 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 ("image", models.ImageField(blank=True, upload_to="products_images/")),
-                ("name", models.CharField(max_length=127)),
+                ("name", models.CharField(max_length=127, unique=True)),
                 ("description", models.TextField()),
                 ("price", models.DecimalField(decimal_places=2, max_digits=12)),
                 ("release_data", models.DateTimeField(auto_now=True)),
