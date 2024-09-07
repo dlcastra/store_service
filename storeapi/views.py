@@ -1,3 +1,5 @@
+import logging
+
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, status
@@ -5,7 +7,6 @@ from rest_framework import permissions, generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
-import logging
 
 from core import permissions as custom_permissions
 from storeapi.models import Product
