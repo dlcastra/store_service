@@ -1,3 +1,5 @@
+import logging
+
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import permissions, status, generics, filters
 from rest_framework.permissions import IsAuthenticated
@@ -18,6 +20,7 @@ from wallet.serializers import TransactionHistorySerializer
 
 class ConnectWalletView(APIView):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    logger = logging.getLogger()
 
     def get(self, request):
         return Response(
@@ -30,6 +33,7 @@ class ConnectWalletView(APIView):
         wallet, created = Wallet.objects.get_or_create(user=request.user)
 
         if not created:
+            self.logger.warning("Wallet already exists")
             return Response(
                 {"message": "You already have a wallet", "wallet address": f"{wallet.address}"},
                 status=status.HTTP_200_OK,
@@ -40,6 +44,7 @@ class ConnectWalletView(APIView):
         user_bonuses.save()
         wallet.save()
 
+        self.logger.info("The wallet has been successfully created")
         return Response({"message": f"Your wallet address: {wallet.address}"}, status=status.HTTP_201_CREATED)
 
 
@@ -70,6 +75,7 @@ class GetWalletTransactionHistoryView(generics.ListAPIView, GenericViewSet):
 
 class WalletToWallerTransactionView(WalletTransactionMixin, APIView):
     permission_classes = [IsAuthenticated]
+    logger = logging.getLogger()
 
     def post(self, request):
         request_user_from = request.user
@@ -78,17 +84,21 @@ class WalletToWallerTransactionView(WalletTransactionMixin, APIView):
 
         # GET DATA FROM REQUEST
         if "wallet_addr_to" not in request.data:
+            self.logger.warning(f"Missing wallet address of the recipient. User: {request_user_from.username}")
             return self._error_response("To make transaction you must provide wallet address in 'wallet_addr_to'!")
 
         if "amount" not in request.data:
+            self.logger.warning(f"Missing amount for transaction.")
             return self._error_response("To make a transaction, you must provide the amount.")
 
         # CHECK WALLET FROM
         wallet_from = self._get_wallet_from_user(request_user_from)
         if not wallet_from:
+            self.logger.error(f"No wallet found for user {request_user_from.username}")
             return self._error_response({"error": "To make Wallet-To-Wallet transaction you need to create a wallet"})
 
         if wallet_from.address == wallet_addr_to:
+            self.logger.error(f"Attempt to transfer funds to the same wallet by user: {request_user_from.username}")
             return self._error_response({"error": "Cannot transfer to the same wallet"})
 
         # CHECK WALLET TO
@@ -113,6 +123,7 @@ class WalletToWallerTransactionView(WalletTransactionMixin, APIView):
         # CREATE AND SAVE TRANSACTION
         self._check_transaction_duplicate(request_user_from, user_to, wallet_from, wallet_to, validated_amount)
         self._perform_transaction(request_user_from, user_to, wallet_from, wallet_to, validated_amount)
+        self.logger.info("Transaction successful")
         return Response(
             {"message": "Transaction was successful", "Your balance": wallet_from.wallet_balance},
             status=status.HTTP_201_CREATED,

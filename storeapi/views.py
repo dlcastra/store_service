@@ -5,6 +5,7 @@ from rest_framework import permissions, generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
+import logging
 
 from core import permissions as custom_permissions
 from storeapi.models import Product
@@ -46,6 +47,7 @@ class ProductListView(generics.ListAPIView, GenericViewSet):
 
 class BuyNFT(WalletTransactionMixin, APIView):
     permission_classes = [permissions.IsAuthenticated]
+    logger = logging.getLogger()
 
     def post(self, request, *args, **kwargs):
         request_user = request.user
@@ -55,9 +57,9 @@ class BuyNFT(WalletTransactionMixin, APIView):
         validated_amount = self._validate_amount(product_instance.price)
 
         if not wallet_from:
-            return self._error_response({"error": "To make Wallet-To-Wallet transaction you need to create a wallet"})
+            return self._error_response("To make Wallet-To-Wallet transaction you need to create a wallet")
         if not wallet_to:
-            return self._error_response({"error": "The product owner has not connected the wallet "})
+            return self._error_response("The product owner has not connected the wallet ")
         if product_instance.owner == request_user:
             return self._error_response("You cannot buy your own product.")
         if wallet_from.wallet_balance < validated_amount:
@@ -71,6 +73,13 @@ class BuyNFT(WalletTransactionMixin, APIView):
         user_backpack, created = UserNFTBackpack.objects.update_or_create(
             products=product_instance, defaults={"user": request_user}
         )
+        if created:
+            self.logger.info(f"New UserNFTBackpack created for user: {request_user}, product: {product_instance.name}")
+        else:
+            self.logger.info(
+                f"Updated existing UserNFTBackpack for user: {request_user}, product: {product_instance.name}"
+            )
+
         product_instance.owner = request_user
         product_instance.save()
 
