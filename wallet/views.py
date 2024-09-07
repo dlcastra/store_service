@@ -95,16 +95,16 @@ class WalletToWallerTransactionView(WalletTransactionMixin, APIView):
         wallet_from = self._get_wallet_from_user(request_user_from)
         if not wallet_from:
             self.logger.error(f"No wallet found for user {request_user_from.username}")
-            return self._error_response({"error": "To make Wallet-To-Wallet transaction you need to create a wallet"})
+            return self._error_response("To make Wallet-To-Wallet transaction you need to create a wallet")
 
         if wallet_from.address == wallet_addr_to:
             self.logger.error(f"Attempt to transfer funds to the same wallet by user: {request_user_from.username}")
-            return self._error_response({"error": "Cannot transfer to the same wallet"})
+            return self._error_response("Cannot transfer to the same wallet")
 
         # CHECK WALLET TO
         wallet_to, user_to = self._get_wallet_to_and_user_to(wallet_addr_to)
         if not wallet_to or not user_to:
-            return self._error_response({"error": "Enter valid wallet address"})
+            return self._error_response("Enter valid wallet address")
 
         # CHECK AMOUNT AND WALLET BALANCE
         validated_amount = self._validate_amount(amount)
