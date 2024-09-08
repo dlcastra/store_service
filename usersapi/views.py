@@ -15,7 +15,7 @@ from usersapi import serializers
 from usersapi.filters import CustomTokenFilter
 from usersapi.helpers import generate_key
 from usersapi.models import CustomObtainToken, CustomUser
-from usersapi.serializers import CustomObtainTokenSerializer
+from usersapi.serializers import CustomObtainTokenSerializer, ChangePasswordSerializer
 
 """ --- Registration | Login | Logout """
 
@@ -58,6 +58,32 @@ class LoginWithObtainAuthToken(APIView):
 
         self.logger.info("The user logged in successfully")
         return Response({"Token": token.key, "user_agent": token.user_agent}, status=status.HTTP_200_OK)
+
+
+class ChangePassword(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    logger = logging.getLogger()
+
+    def get_object(self, queryset=None):
+        return self.request.user
+
+    def put(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        serializer = ChangePasswordSerializer(data=request.data)
+
+        if serializer.is_valid():
+            old_password = serializer.data.get("old_password")
+            if not self.object.check_password(old_password):
+                self.logger.warning("Invalid old password")
+                return Response({"old_password": "Wrong password"}, status=status.HTTP_400_BAD_REQUEST)
+
+            self.object.set_password(serializer.data.get("new_password"))
+            self.object.save()
+            self.logger.info("The new password has been accepted")
+            return Response({"info": "Successfully changed"}, status=status.HTTP_204_NO_CONTENT)
+
+        self.logger.error("Serializer data is not valid")
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class LogoutView(APIView):
