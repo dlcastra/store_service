@@ -7,6 +7,7 @@ from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
 from usersapi.models import CustomObtainToken, CustomUser
+from usersapi.tasks import send_registration_email
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -38,19 +39,21 @@ class RegisterSerializer(serializers.ModelSerializer):
         )
         user.set_password(validated_data["password"])
 
-        referral_code = validated_data.get("referral_code")
-        referrer = CustomUser.objects.get(user_own_invite_code=referral_code)
-        if referrer:
-            user.referral_code = referral_code
-            user.amount_bonuses = 50
-            referrer.amount_bonuses += 100
-            referrer.amount_invitations += 1
+        try:
+            referral_code = validated_data.get("referral_code")
+            referrer = CustomUser.objects.get(user_own_invite_code=referral_code)
+            if referrer:
+                user.referral_code = referral_code
+                user.amount_bonuses = 50
+                referrer.amount_bonuses += 100
+                referrer.amount_invitations += 1
 
-            referrer.save()
-        elif not referrer and referral_code is not None:
-            raise serializers.ValidationError({"referral_code": "Invalid referral code."})
+                referrer.save()
+        except CustomUser.DoesNotExist:
+            pass
 
         user.save()
+        send_registration_email.delay(email=user.email, context={"username": user.username})
 
         return user
 

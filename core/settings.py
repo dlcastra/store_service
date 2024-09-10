@@ -27,7 +27,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = "django-insecure-9_k69_bs_vdtq_e5k=49_-ayzwp5$mzw1*+9$suyek1s-(^8+)"
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
 ALLOWED_HOSTS = ["*"]
 
@@ -172,3 +172,15 @@ LOGGING = {
         "level": "DEBUG",
     },
 }
+
+# Celery Configuration
+CELERY_BROKER_URL = "amqp://guest@localhost//"
+
+# Email
+EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+EMAIL_USE_TLS = True
+EMAIL_HOST = "smtp.gmail.com"
+EMAIL_HOST_USER = config("DEFAULT_FROM_EMAIL")
+EMAIL_HOST_PASSWORD = config("EMAIL_SECRET_KEY")
+EMAIL_PORT = 587
+DEFAULT_FROM_EMAIL = f"NFT market <{EMAIL_HOST_USER}>"

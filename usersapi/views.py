@@ -15,7 +15,6 @@ from usersapi.filters import CustomTokenFilter
 from usersapi.helpers import generate_key
 from usersapi.mixins import AuthorizationTokenMixin
 from usersapi.models import CustomObtainToken, CustomUser
-from usersapi.serializers import CustomObtainTokenSerializer, ChangePasswordSerializer, LoginSerializer
 
 """ --- Registration | Login | Logout """
 
@@ -28,12 +27,13 @@ class RegisterView(generics.CreateAPIView, GenericViewSet):
 
 class LoginWithObtainAuthToken(APIView):
     logger = logging.getLogger()
+    serializer_class = serializers.LoginSerializer
 
     def post(self, request, *args, **kwargs):
         user_agent = request.META.get("HTTP_USER_AGENT", "Unknown")
         user_ip_addr = request.META.get("REMOTE_ADDR", "Unknown")
 
-        serializer = LoginSerializer(data={**request.data, "user_agent": user_agent, "ip_address": user_ip_addr})
+        serializer = self.serializer_class(data={**request.data, "user_agent": user_agent, "ip_address": user_ip_addr})
         if not serializer.is_valid():
             self.logger.error("Missing or invalid data during login attempt")
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -56,13 +56,14 @@ class LoginWithObtainAuthToken(APIView):
 class ChangePassword(APIView):
     permission_classes = [permissions.IsAuthenticated]
     logger = logging.getLogger()
+    serializer_class = serializers.ChangePasswordSerializer
 
     def get_object(self, queryset=None):
         return self.request.user
 
     def put(self, request, *args, **kwargs):
         self.object = self.get_object()
-        serializer = ChangePasswordSerializer(data=request.data)
+        serializer = self.serializer_class(data=request.data)
 
         if serializer.is_valid():
             old_password = serializer.data.get("old_password")
@@ -147,7 +148,7 @@ class RotateTokenView(AuthorizationTokenMixin, APIView):
 class GetAllActiveSessionsView(generics.ListAPIView, GenericViewSet):
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = paginations.OnlyFiveElementsPagination
-    serializer_class = CustomObtainTokenSerializer
+    serializer_class = serializers.CustomObtainTokenSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_class = CustomTokenFilter
     logger = logging.getLogger()
