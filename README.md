@@ -16,7 +16,23 @@ python manage.py migrate
 >>> key = Fernet.generate_key()
 >>> key
 ```
-#### 6. Run server with runserver_plus to use HTTPS
+#### 6. Run broker
+```
+ docker run -d -p 5672:5672 rabbitmq
+```
+#### 7. Run celery beat:
+```
+ celery -A core beat 
+```
+#### 8. Run worker:
+```
+celery -A hilel12 worker -l INFO
+
+or on Windows:
+1. pip install eventlet
+2. celery -A hilel12 worker -l INFO -P eventlet
+```
+#### 9. Run server with runserver_plus to use HTTPS
 ```
 python manage.py runserver_plus --cert-file cert.pem --key-file key.pem
 ```
