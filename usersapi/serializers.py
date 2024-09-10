@@ -7,7 +7,7 @@ from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
 from usersapi.models import CustomObtainToken, CustomUser
-from usersapi.tasks import send_registration_email
+from usersapi.tasks import send_email
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -53,7 +53,12 @@ class RegisterSerializer(serializers.ModelSerializer):
             pass
 
         user.save()
-        send_registration_email.delay(email=user.email, context={"username": user.username})
+        send_email.delay(
+            email=user.email,
+            subject="Registration complete",
+            template_name="emails/registration_email.html",
+            context={"username": user.username},
+        )
 
         return user
 

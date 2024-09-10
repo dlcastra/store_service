@@ -8,6 +8,7 @@ from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
 
 from usersapi.models import CustomUser
+from usersapi.tasks import send_email
 from wallet.constants import MAX_TRANSACTION_AMOUNT, MIN_TRANSACTION_AMOUNT
 from wallet.filters import TransactionsFilter
 from wallet.mixins import WalletTransactionMixin
@@ -43,6 +44,13 @@ class ConnectWalletView(APIView):
         user_bonuses.amount_bonuses = 0
         user_bonuses.save()
         wallet.save()
+
+        send_email(
+            email=request.user.email,
+            subject="Your wallet",
+            template_name="emails/wallet_connection.html",
+            context={"username": request.user.username},
+        )
 
         self.logger.info("The wallet has been successfully created")
         return Response({"message": f"Your wallet address: {wallet.address}"}, status=status.HTTP_201_CREATED)
