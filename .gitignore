@@ -162,3 +162,9 @@ cython_debug/
 # Certificates
 cert.crt
 cert.key
+
+# Celery
+celerybeat-schedule.db
+celerybeat-schedule.bak
+celerybeat-schedule.dat
+celerybeat-schedule.dir
