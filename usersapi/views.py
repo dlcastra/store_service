@@ -1,7 +1,6 @@
 import logging
 from datetime import timedelta
 
-from django.contrib.auth import authenticate
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
@@ -14,8 +13,9 @@ from usersapi import paginations
 from usersapi import serializers
 from usersapi.filters import CustomTokenFilter
 from usersapi.helpers import generate_key
+from usersapi.mixins import AuthorizationTokenMixin
 from usersapi.models import CustomObtainToken, CustomUser
-from usersapi.serializers import CustomObtainTokenSerializer, ChangePasswordSerializer
+from usersapi.serializers import CustomObtainTokenSerializer, ChangePasswordSerializer, LoginSerializer
 
 """ --- Registration | Login | Logout """
 
@@ -30,28 +30,21 @@ class LoginWithObtainAuthToken(APIView):
     logger = logging.getLogger()
 
     def post(self, request, *args, **kwargs):
-        username = request.data.get("username")
-        password = request.data.get("password")
-        user = authenticate(username=username, password=password)
+        user_agent = request.META.get("HTTP_USER_AGENT", "Unknown")
+        user_ip_addr = request.META.get("REMOTE_ADDR", "Unknown")
 
-        user_agent = request.META.get("HTTP_USER_AGENT")
-        ip_addr = request.META.get("REMOTE_ADDR")
+        serializer = LoginSerializer(data={**request.data, "user_agent": user_agent, "ip_address": user_ip_addr})
+        if not serializer.is_valid():
+            self.logger.error("Missing or invalid data during login attempt")
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        if not username or not password:
-            self.logger.error("Missing username or password")
-            return Response(
-                {"error": "To login you must provide both username and password"}, status=status.HTTP_400_BAD_REQUEST
-            )
-
-        if not user:
-            self.logger.error("The user attempted to send an invalid username or password")
-            return Response({"error": "Invalid password or username"}, status=status.HTTP_400_BAD_REQUEST)
-
+        user = serializer.validated_data["user"]
         token, created = CustomObtainToken.objects.get_or_create(
             user=user,
             user_agent=user_agent,
-            ip_address=ip_addr,
+            ip_address=user_ip_addr,
         )
+
         if token:
             token.status = "Online"
             token.save()
@@ -91,8 +84,8 @@ class LogoutView(APIView):
     logger = logging.getLogger()
 
     def post(self, request):
-        user_agent = request.META.get("HTTP_USER_AGENT")
-        user_ip_addr = request.META.get("REMOTE_ADDR")
+        user_agent = request.META.get("HTTP_USER_AGENT", "Unknown")
+        user_ip_addr = request.META.get("REMOTE_ADDR", "Unknown")
         try:
             token = CustomObtainToken.objects.get(user=request.user, user_agent=user_agent, ip_address=user_ip_addr)
             token.status = "Offline"
@@ -118,40 +111,34 @@ class EditUserDataView(generics.RetrieveUpdateAPIView, GenericViewSet):
         return self.request.user
 
 
-class RotateTokenView(APIView):
+class RotateTokenView(AuthorizationTokenMixin, APIView):
     permission_classes = [permissions.IsAuthenticated]
     logger = logging.getLogger()
 
     def post(self, request):
         auth_header = request.headers.get("Authorization")
-        user_agent = request.META.get("HTTP_USER_AGENT")
-        user_ip_addr = request.META.get("REMOTE_ADDR")
+        user_agent = request.META.get("HTTP_USER_AGENT", "Unknown")
+        user_ip_addr = request.META.get("REMOTE_ADDR", "Unknown")
+        header_token, error_response = self._get_token_from_header(auth_header)
+        if error_response:
+            return error_response
 
-        if not auth_header or not auth_header.startswith("Token "):
-            self.logger.error("Invalid Token")
-            return Response(
-                {"detail": "Authorization header is missing or invalid."}, status=status.HTTP_400_BAD_REQUEST
-            )
-
-        header_token = auth_header.split()[1]
         try:
             token = CustomObtainToken.objects.get(user=request.user, user_agent=user_agent, ip_address=user_ip_addr)
-            if header_token == token.key and token.status == "Online":
+            if token.status != "Online":
+                self.logger.warning("Token status is Offline")
+                return self._error_response("Provided token status is Offline, please login to change token.")
+            if token.key == header_token:
                 token.key = generate_key(token)
                 token.save()
-
                 self.logger.info("Successfully rotated")
                 return Response({"new_token": token.key}, status=status.HTTP_200_OK)
-            else:
-                self.logger.warning("Token is not owned by the user or its status is Offline")
-                return Response(
-                    {"detail": "Provided token does not match the user's token or token is Offline."},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
 
         except CustomObtainToken.DoesNotExist:
             self.logger.error("Token does not exist")
-            return Response({"detail": "Token does not exist."}, status=status.HTTP_404_NOT_FOUND)
+            self._error_response("Token does not exist.", status.HTTP_404_NOT_FOUND)
+
+        return self._error_response("Bad request")
 
 
 """ --- Get views --- """
@@ -188,16 +175,15 @@ class GetAllActiveSessionsView(generics.ListAPIView, GenericViewSet):
 """ --- Delete views --- """
 
 
-class DeleteAccountView(APIView):
+class DeleteAccountView(AuthorizationTokenMixin, APIView):
     permission_classes = [permissions.IsAuthenticated]
     logger = logging.getLogger()
 
     def post(self, request):
-        header_token = request.headers.get("Authorization").split()[1]
-
-        if not header_token:
-            self.logger.error("No token provided")
-            return Response({"detail": "The token has not been transferred."}, status=status.HTTP_400_BAD_REQUEST)
+        auth_header = request.headers.get("Authorization")
+        header_token, error_response = self._get_token_from_header(auth_header)
+        if error_response:
+            return error_response
 
         try:
             token = CustomObtainToken.objects.get(user=request.user, user_agent=request.META.get("HTTP_USER_AGENT"))
@@ -210,23 +196,22 @@ class DeleteAccountView(APIView):
 
         except CustomObtainToken.DoesNotExist:
             self.logger.error("Token not found")
-            return Response({"detail": "Token does not exist."}, status=status.HTTP_404_NOT_FOUND)
+            return self._error_response("Token does not exist.", status.HTTP_404_NOT_FOUND)
 
-        return Response({"detail": "Bad request"}, status=status.HTTP_400_BAD_REQUEST)
+        return self._error_response("Bad request")
 
 
-class DeleteAnotherTokensView(APIView):
+class DeleteAnotherTokensView(AuthorizationTokenMixin, APIView):
     permission_classes = [permissions.IsAuthenticated]
     logger = logging.getLogger()
 
     def post(self, request):
         auth_header = request.headers.get("Authorization")
-        if not auth_header:
-            self.logger.error("No token provided")
-            return Response({"detail": "Missed authorization token."}, status=status.HTTP_403_FORBIDDEN)
+        header_token, error_response = self._get_token_from_header(auth_header)
+        if error_response:
+            return error_response
 
         try:
-            header_token = auth_header.split(" ")[1]
             another_user_tokens = CustomObtainToken.objects.filter(user=request.user).exclude(key=header_token)
             token_exist = CustomObtainToken.objects.get(key=header_token, user=request.user)
             token_age = timezone.now() - token_exist.created

@@ -1,6 +1,7 @@
 import hashlib
 import secrets
 
+from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
@@ -52,6 +53,27 @@ class RegisterSerializer(serializers.ModelSerializer):
         user.save()
 
         return user
+
+
+class LoginSerializer(serializers.Serializer):
+    username = serializers.CharField(required=True)
+    password = serializers.CharField(write_only=True, required=True)
+    user_agent = serializers.CharField(required=False, allow_blank=True)
+    ip_address = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, data):
+        username = data.get("username")
+        password = data.get("password")
+
+        if not username or not password:
+            raise serializers.ValidationError("To login you must provide both username and password.")
+
+        user = authenticate(username=username, password=password)
+        if not user:
+            raise serializers.ValidationError("Invalid username or password.")
+
+        data["user"] = user
+        return data
 
 
 class ChangePasswordSerializer(serializers.Serializer):
