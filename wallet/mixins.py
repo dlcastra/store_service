@@ -48,13 +48,14 @@ class WalletTransactionMixin:
                 wallet_from.save()
                 wallet_to.save()
 
-                WalletToWalletTransaction.objects.create(
+                transaction_record = WalletToWalletTransaction.objects.create(
                     user_from=user_from,
                     user_to=user_to,
                     wallet_addr_from=encrypt_data(wallet_from.address),
                     wallet_addr_to=encrypt_data(wallet_to.address),
                     amount=amount,
                 )
+                return transaction_record.transaction_id
         except Exception as e:
             transaction.rollback()
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)

@@ -45,7 +45,7 @@ class ConnectWalletView(APIView):
         user_bonuses.save()
         wallet.save()
 
-        send_email(
+        send_email.delay(
             email=request.user.email,
             subject="Your wallet",
             template_name="emails/wallet_connection.html",
@@ -130,8 +130,22 @@ class WalletToWallerTransactionView(WalletTransactionMixin, APIView):
 
         # CREATE AND SAVE TRANSACTION
         self._check_transaction_duplicate(request_user_from, user_to, wallet_from, wallet_to, validated_amount)
-        self._perform_transaction(request_user_from, user_to, wallet_from, wallet_to, validated_amount)
+        transaction_id = self._perform_transaction(request_user_from, user_to, wallet_from, wallet_to, validated_amount)
         self.logger.info("Transaction successful")
+
+        send_email.delay(
+            email=request.user.email,
+            subject="Your wallet",
+            template_name="emails/W2WTransaction.html",
+            context={
+                "transaction_id": transaction_id,
+                "username": request.user.username,
+                "amount": validated_amount,
+                "user_to": user_to.username,
+                "wallet_to_addr": wallet_addr_to,
+            },
+        )
+
         return Response(
             {"message": "Transaction was successful", "Your balance": wallet_from.wallet_balance},
             status=status.HTTP_201_CREATED,
