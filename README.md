@@ -26,11 +26,11 @@ python manage.py migrate
 ```
 #### 8. Run worker:
 ```
-celery -A hilel12 worker -l INFO
+celery -A core worker -l INFO
 
 or on Windows:
 1. pip install eventlet
-2. celery -A hilel12 worker -l INFO -P eventlet
+2. celery -A core worker -l INFO -P eventlet
 ```
 #### 9. Run server with runserver_plus to use HTTPS
 ```
