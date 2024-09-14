@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 from decouple import config
@@ -49,6 +50,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework.authtoken",
     "django_extensions",
+    "django_celery_beat",
 ]
 
 MIDDLEWARE = [
@@ -94,6 +96,18 @@ DATABASES = {
         "PORT": "5432",
     }
 }
+
+if os.getenv("DOCKERIZED", False):
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.getenv("POSTGRES_DB", "mock-db"),
+            "USER": "postgres",
+            "PASSWORD": config("POSTGRES_PASSWORD"),
+            "HOST": "db",
+            "PORT": "5432",
+        }
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
@@ -173,9 +187,6 @@ LOGGING = {
     },
 }
 
-# Celery Configuration
-CELERY_BROKER_URL = "amqp://guest@localhost//"
-
 # Email
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_USE_TLS = True
@@ -184,3 +195,23 @@ EMAIL_HOST_USER = config("DEFAULT_FROM_EMAIL")
 EMAIL_HOST_PASSWORD = config("EMAIL_SECRET_KEY")
 EMAIL_PORT = 587
 DEFAULT_FROM_EMAIL = f"NFT market <{EMAIL_HOST_USER}>"
+
+# Celery Configuration
+CELERY_BROKER_URL = "amqp://guest@localhost:5672//"
+CELERY_TASK_SERIALIZER = "json"
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_ENABLE_UTC = True
+CELERY_TASK_BACKEND = "rpc://"
+
+# Redis
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": "redis://redis:6379/1",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        },
+    }
+}
