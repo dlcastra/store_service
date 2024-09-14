@@ -8,16 +8,28 @@ services:
     ports:
       - "8000:8000"
     depends_on:
+      run_db_migrations:
+        condition: service_completed_successfully
       db:
         condition: service_healthy
-#    command: "python /app/manage.py runserver_plus --cert-file cert.pem --key-file key.pem 0.0.0.0:8000"
+
+  run_db_migrations:
+    build: .
+    restart: no
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=store_service
+    depends_on:
+      db:
+        condition: service_healthy
+    command: "python /app/manage.py migrate"
 
   db:
     image: postgres:16.2
     restart: always
     user: postgres
-    volumes:
-      - db-data:/var/lib/postgresql/data:rw
     env_file:
       - .env
     environment:
@@ -25,6 +37,8 @@ services:
       - POSTGRES_DB=store_service
     expose:
       - 5432
+    volumes:
+      - db-data:/var/lib/postgresql/data:rw
     healthcheck:
       test: ["CMD-SHELL", "pg_isready"]
       interval: 1s
