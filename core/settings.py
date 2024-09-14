@@ -100,7 +100,7 @@ DATABASES = {
 if os.getenv("DOCKERIZED", False):
     DATABASES = {
         "default": {
-            "ENGINE": "django.db.backends.postgresql",
+            "ENGINE": "django.db.backends.postgresql_psycopg2",
             "NAME": os.getenv("POSTGRES_DB", "mock-db"),
             "USER": "postgres",
             "PASSWORD": config("POSTGRES_PASSWORD"),
@@ -204,6 +204,7 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TIMEZONE = TIME_ZONE
 CELERY_ENABLE_UTC = True
 CELERY_TASK_BACKEND = "rpc://"
+CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
 
 # Redis
 CACHES = {
