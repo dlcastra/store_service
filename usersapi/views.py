@@ -1,7 +1,10 @@
 import logging
+import time
 from datetime import timedelta
 
 from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from rest_framework import generics, permissions, status
@@ -167,7 +170,9 @@ class GetAllActiveSessionsView(generics.ListAPIView, GenericViewSet):
 
         return context
 
+    @method_decorator(cache_page(60 * 10))
     def list(self, request, *args, **kwargs):
+        time.sleep(1)
         list_ = super().list(request, *args, **kwargs)
         self.logger.info("Successfully retrieved")
         return list_

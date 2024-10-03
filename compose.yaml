@@ -7,7 +7,7 @@ services:
       - .env
     environment:
       - CELERY_BROKER_URL=amqp://guest:guest@broker:5672/
-    #      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379
     ports:
       - "8000:8000"
     depends_on:
@@ -38,7 +38,9 @@ services:
     image: postgres:16.2
     restart: always
     user: postgres
+    container_name: docker_store_service
     environment:
+      - DOCKERIZED=true
       - POSTGRES_DB=docker_store_service
       - POSTGRES_PASSWORD=password
     expose:
@@ -58,6 +60,7 @@ services:
       - .env
     environment:
       - CELERY_BROKER_URL=amqp://guest:guest@broker:5672/
+      - CELERY_RESULT_BACKEND=redis://redis:6379
     command: celery -A core worker -l INFO
     depends_on:
       db:
@@ -90,6 +93,17 @@ services:
       interval: 30s
       timeout: 30s
       retries: 10
+
+  redis:
+    image: redis:7.0-alpine
+    restart: always
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   db-data:

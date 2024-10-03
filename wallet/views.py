@@ -1,5 +1,8 @@
 import logging
+import time
 
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import permissions, status, generics, filters
 from rest_framework.permissions import IsAuthenticated
@@ -59,9 +62,11 @@ class ConnectWalletView(APIView):
 class GetWalletInfoView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
+    @method_decorator(cache_page(60 * 10))
     def get(self, request):
         user = request.user
         wallet = Wallet.objects.get(user=user)
+        time.sleep(1)
         return Response(
             {"wallet address": wallet.address, "wallet balance": wallet.wallet_balance}, status=status.HTTP_200_OK
         )
@@ -79,6 +84,11 @@ class GetWalletTransactionHistoryView(generics.ListAPIView, GenericViewSet):
         transactions = WalletToWalletTransaction.objects.filter(user_from=user).order_by("-timestamp")
 
         return transactions
+
+    @method_decorator(cache_page(60 * 10))
+    def list(self, request, *args, **kwargs):
+        time.sleep(1)
+        return super().list(request, *args, **kwargs)
 
 
 class WalletToWallerTransactionView(WalletTransactionMixin, APIView):

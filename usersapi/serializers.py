@@ -39,18 +39,17 @@ class RegisterSerializer(serializers.ModelSerializer):
         )
         user.set_password(validated_data["password"])
 
-        try:
-            referral_code = validated_data.get("referral_code")
-            referrer = CustomUser.objects.get(user_own_invite_code=referral_code)
-            if referrer:
+        referral_code = validated_data.get("referral_code")
+        if referral_code:
+            try:
+                referrer = CustomUser.objects.get(user_own_invite_code=referral_code)
                 user.referral_code = referral_code
                 user.amount_bonuses = 50
                 referrer.amount_bonuses += 100
-                referrer.amount_invitations += 1
-
+                referrer.amount_bonuses += 1
                 referrer.save()
-        except CustomUser.DoesNotExist:
-            pass
+            except CustomUser.DoesNotExist:
+                raise serializers.ValidationError({"referral_code": "Wrong referral code."})
 
         user.save()
         send_email.delay(
