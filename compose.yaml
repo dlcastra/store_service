@@ -21,6 +21,8 @@ services:
         condition: service_started
       broker:
         condition: service_healthy
+    networks:
+      - app-network
 
   run_db_migrations:
     build: .
@@ -33,6 +35,8 @@ services:
       db:
         condition: service_healthy
     command: "python /app/manage.py migrate"
+    networks:
+      - app-network
 
   db:
     image: postgres:16.2
@@ -52,6 +56,8 @@ services:
       interval: 1s
       timeout: 5s
       retries: 10
+    networks:
+      - app-network
 
   celery:
     build:
@@ -67,6 +73,8 @@ services:
         condition: service_healthy
       broker:
         condition: service_healthy
+    networks:
+      - app-network
 
   celery-beat:
     build:
@@ -79,6 +87,8 @@ services:
         condition: service_healthy
       broker:
         condition: service_healthy
+    networks:
+      - app-network
 
   broker:
     image: rabbitmq:3-management
@@ -93,6 +103,8 @@ services:
       interval: 30s
       timeout: 30s
       retries: 10
+    networks:
+      - app-network
 
   redis:
     image: redis:7.0-alpine
@@ -100,11 +112,17 @@ services:
     expose:
       - "6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - app-network
 
 volumes:
   db-data:
   rabbitmq_data:
+
+networks:
+  app-network:
+    driver: bridge
