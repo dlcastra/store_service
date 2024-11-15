@@ -1,6 +1,6 @@
 import logging
-import time
 
+import requests
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from django_filters.rest_framework import DjangoFilterBackend
@@ -18,6 +18,7 @@ from wallet.mixins import WalletTransactionMixin
 from wallet.models import Wallet, WalletToWalletTransaction
 from wallet.paginations import TransactionPagination
 from wallet.serializers import TransactionHistorySerializer
+from wallet.utils import get_node_url
 
 """ --- WALLET --- """
 
@@ -66,7 +67,6 @@ class GetWalletInfoView(APIView):
     def get(self, request):
         user = request.user
         wallet = Wallet.objects.get(user=user)
-        time.sleep(1)
         return Response(
             {"wallet address": wallet.address, "wallet balance": wallet.wallet_balance}, status=status.HTTP_200_OK
         )
@@ -87,7 +87,6 @@ class GetWalletTransactionHistoryView(generics.ListAPIView, GenericViewSet):
 
     @method_decorator(cache_page(60 * 10))
     def list(self, request, *args, **kwargs):
-        time.sleep(1)
         return super().list(request, *args, **kwargs)
 
 
@@ -160,3 +159,43 @@ class WalletToWallerTransactionView(WalletTransactionMixin, APIView):
             {"message": "Transaction was successful", "Your balance": wallet_from.wallet_balance},
             status=status.HTTP_201_CREATED,
         )
+
+
+class RefillWalletView(APIView):
+    permission_classes = [IsAuthenticated]
+    logger = logging.getLogger()
+
+    def post(self, request):
+        user = request.user.id
+        user_wallet = Wallet.objects.get(user=user)
+        amount = request.data["amount"]
+        print(amount)
+        ccy: int = request.data["ccy"] if "ccy" in request.data else 840
+
+        return self._send_transaction_request(user, user_wallet, amount, ccy)
+
+    @staticmethod
+    def _send_transaction_request(user_id: int, user_wallet: Wallet, amount: int, ccy: int) -> dict | Response:
+        payment_service_url: str = get_node_url()
+        url = f"{payment_service_url}/make-transaction"
+        payload = {
+            "userId": user_id,
+            "walletAddr": user_wallet.address,
+            "amount": amount,
+            "ccy": ccy
+        }
+        print(payload)
+
+        try:
+            response = requests.post(url, json=payload)
+            response.raise_for_status()
+            return Response(response.json())
+        except requests.RequestException as e:
+            print(f"Error sending transaction request: {e}")
+            return Response({"error": e}, status=status.HTTP_400_BAD_REQUEST)
+
+class PaymentWebhookView(APIView):
+    permission_classes = [IsAuthenticated]
+    logger = logging.getLogger()
+
+    def post(self, request): ...
