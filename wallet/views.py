@@ -178,12 +178,7 @@ class RefillWalletView(APIView):
     def _send_transaction_request(user_id: int, user_wallet: Wallet, amount: int, ccy: int) -> dict | Response:
         payment_service_url: str = get_node_url()
         url = f"{payment_service_url}/make-transaction"
-        payload = {
-            "userId": user_id,
-            "walletAddr": user_wallet.address,
-            "amount": amount,
-            "ccy": ccy
-        }
+        payload = {"userId": user_id, "walletAddr": user_wallet.address, "amount": amount, "ccy": ccy}
         print(payload)
 
         try:
@@ -193,6 +188,7 @@ class RefillWalletView(APIView):
         except requests.RequestException as e:
             print(f"Error sending transaction request: {e}")
             return Response({"error": e}, status=status.HTTP_400_BAD_REQUEST)
+
 
 class PaymentWebhookView(APIView):
     permission_classes = [IsAuthenticated]

@@ -15,5 +15,5 @@ urlpatterns += [
     path(
         "wallet/make-transaction/", views.WalletToWallerTransactionView.as_view(), name="wallet_to_wallet_transaction"
     ),
-    path("wallet/refill", views.RefillWalletView.as_view(), name="refill_wallet")
+    path("wallet/refill", views.RefillWalletView.as_view(), name="refill_wallet"),
 ]

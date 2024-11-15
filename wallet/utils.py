@@ -28,5 +28,5 @@ def get_node_url() -> str | None:
         return None
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     print(get_node_url())
