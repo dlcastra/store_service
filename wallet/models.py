@@ -56,3 +56,15 @@ class WalletToWalletTransaction(models.Model):
 
     def __str__(self):
         return f"Transaction {self.transaction_id} from {self.wallet_addr_from} to {self.wallet_addr_to}"
+
+
+class PaymentTransaction(models.Model):
+    transaction_id = models.CharField(max_length=64, unique=True)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="user_payment_transaction"
+    )
+    user_wallet_addr = models.CharField(max_length=185)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    currency = models.CharField(max_length=3, default="USD")
+    invoice_url = models.CharField(max_length=128)
+    timestamp = models.DateTimeField(auto_now=True)
