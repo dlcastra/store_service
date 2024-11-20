@@ -26,7 +26,7 @@ class CustomUser(AbstractUser):
 
 
 class CustomObtainToken(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="auth_tokens")
     key = models.CharField(max_length=64, unique=True)
     created = models.DateTimeField(auto_now_add=True)
     user_agent = models.CharField(max_length=255)
