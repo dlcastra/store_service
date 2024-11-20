@@ -65,6 +65,6 @@ class PaymentTransaction(models.Model):
     )
     user_wallet_addr = models.CharField(max_length=185)
     amount = models.DecimalField(max_digits=12, decimal_places=2)
-    currency = models.CharField(max_length=3, default="USD")
+    currency = models.IntegerField(default=840)
     invoice_id = models.CharField(max_length=128)
     timestamp = models.DateTimeField(auto_now=True)
