@@ -1,5 +1,6 @@
 import requests
 from cryptography.fernet import Fernet
+from django.urls import reverse
 
 from core import settings
 
@@ -26,6 +27,13 @@ def get_node_url() -> str | None:
     except requests.RequestException as e:
         print(f"Error fetching ngrok URL: {e}")
         return None
+
+
+def setup_url(request) -> str:
+    relative_url = reverse("payment_webhook")
+    absolute_url = request.build_absolute_uri(relative_url)
+
+    return absolute_url
 
 
 if __name__ == "__main__":

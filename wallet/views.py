@@ -1,3 +1,4 @@
+import decimal
 import logging
 
 import requests
@@ -15,10 +16,10 @@ from usersapi.tasks import send_email
 from wallet.constants import MAX_TRANSACTION_AMOUNT, MIN_TRANSACTION_AMOUNT
 from wallet.filters import TransactionsFilter
 from wallet.mixins import WalletTransactionMixin
-from wallet.models import Wallet, WalletToWalletTransaction
+from wallet.models import Wallet, WalletToWalletTransaction, PaymentTransaction
 from wallet.paginations import TransactionPagination
 from wallet.serializers import TransactionHistorySerializer
-from wallet.utils import get_node_url
+from wallet.utils import get_node_url, setup_url
 
 """ --- WALLET --- """
 
@@ -168,17 +169,21 @@ class RefillWalletView(APIView):
     def post(self, request):
         user = request.user.id
         user_wallet = Wallet.objects.get(user=user)
-        amount = request.data["amount"]
-        print(amount)
+        amount: int = request.data["amount"]
         ccy: int = request.data["ccy"] if "ccy" in request.data else 840
+        callback_url: str = setup_url(request)
 
-        return self._send_transaction_request(user, user_wallet, amount, ccy)
+        return self._send_transaction_request(user, user_wallet, amount, ccy, callback_url=callback_url)
 
     @staticmethod
-    def _send_transaction_request(user_id: int, user_wallet: Wallet, amount: int, ccy: int) -> dict | Response:
+    def _send_transaction_request(
+            user_id: int, user_wallet: Wallet, amount: int, ccy: int, **kwargs
+    ) -> dict | Response:
+
         payment_service_url: str = get_node_url()
         url = f"{payment_service_url}/make-transaction"
-        payload = {"userId": user_id, "walletAddr": user_wallet.address, "amount": amount, "ccy": ccy}
+
+        payload = {"userId": user_id, "walletAddr": user_wallet.address, "amount": amount, "ccy": ccy, **kwargs}
         print(payload)
 
         try:
@@ -191,7 +196,32 @@ class RefillWalletView(APIView):
 
 
 class PaymentWebhookView(APIView):
-    permission_classes = [IsAuthenticated]
     logger = logging.getLogger()
 
-    def post(self, request): ...
+    def post(self, request, *args, **kwargs):
+        request_body = request.data
+        request_user = CustomUser.objects.get(id=request_body["user_id"])
+        user_wallet: Wallet = Wallet.objects.get(user=request_user)
+        amount = request_body["amount"] / 100
+
+        try:
+            if request_body["status"] == "success":
+                refill_transaction = PaymentTransaction.objects.create(
+                    transaction_id=request_body["transactionId"],
+                    user=CustomUser.objects.get(id=request_body["user_id"]),
+                    user_wallet_addr=user_wallet.address,
+                    amount=decimal.Decimal(amount),
+                    currency=request_body["ccy"] if "ccy" in request_body else 840,
+                    invoice_id=request_body["invoiceId"]
+                )
+                if refill_transaction:
+                    self.logger.info(f"Transaction successfully created: {refill_transaction.transaction_id}")
+
+            user_wallet.wallet_balance += decimal.Decimal(amount)
+            self.logger.info(f"The balance of wallet {user_wallet.address} has been refilled by {amount}")
+        except Exception as e:
+            print(e)
+            return Response({"status": "error"}, status=status.HTTP_400_BAD_REQUEST)
+
+        print(f"REQUEST BODY: {request_body}")
+        return Response({"status": "success"}, status=status.HTTP_200_OK)
