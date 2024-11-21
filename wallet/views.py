@@ -19,7 +19,7 @@ from wallet.mixins import WalletTransactionMixin
 from wallet.models import Wallet, WalletToWalletTransaction, PaymentTransaction
 from wallet.paginations import TransactionPagination
 from wallet.serializers import TransactionHistorySerializer
-from wallet.utils import get_node_url, setup_url
+from wallet.utils import get_node_url
 
 """ --- WALLET --- """
 
@@ -29,6 +29,7 @@ class ConnectWalletView(APIView):
     logger = logging.getLogger()
 
     def get(self, request):
+
         return Response(
             {"message": "To connect a wallet, specify your token in the body of the request or send POST request"},
             status=status.HTTP_200_OK,
@@ -166,25 +167,35 @@ class RefillWalletView(APIView):
     permission_classes = [IsAuthenticated]
     logger = logging.getLogger()
 
-    def post(self, request):
-        user = request.user.id
-        user_wallet = Wallet.objects.get(user=user)
+    def post(self, request, *args, **kwargs):
+        user_id = request.user.id
         amount: int = request.data["amount"]
         ccy: int = request.data["ccy"] if "ccy" in request.data else 840
-        callback_url: str = setup_url(request)
 
-        return self._send_transaction_request(user, user_wallet, amount, ccy, callback_url=callback_url)
+        user_wallet = self.get_user_wallet(user_id)
+        if user_wallet is None:
+            return Response({"error": "To make refill transaction you need to create a wallet"})
+
+        return self._send_transaction_request(user_id, user_wallet, amount, ccy)
+
+    def get_user_wallet(self, user_id: int) -> Wallet | None:
+        """
+        Return an instance of the user wallet
+        """
+        try:
+            return Wallet.objects.select_related("user").get(user_id=user_id)
+        except Wallet.DoesNotExist:
+            self.logger.error("User's wallet is not defined")
+            return None
 
     @staticmethod
     def _send_transaction_request(
-            user_id: int, user_wallet: Wallet, amount: int, ccy: int, **kwargs
+        user_id: int, user_wallet: Wallet, amount: int, ccy: int, **kwargs
     ) -> dict | Response:
 
         payment_service_url: str = get_node_url()
         url = f"{payment_service_url}/make-transaction"
-
         payload = {"userId": user_id, "walletAddr": user_wallet.address, "amount": amount, "ccy": ccy, **kwargs}
-        print(payload)
 
         try:
             response = requests.post(url, json=payload)
@@ -200,28 +211,60 @@ class PaymentWebhookView(APIView):
 
     def post(self, request, *args, **kwargs):
         request_body = request.data
-        request_user = CustomUser.objects.get(id=request_body["user_id"])
-        user_wallet: Wallet = Wallet.objects.get(user=request_user)
-        amount = request_body["amount"] / 100
+        print(request_body)
 
         try:
-            if request_body["status"] == "success":
-                refill_transaction = PaymentTransaction.objects.create(
-                    transaction_id=request_body["transactionId"],
-                    user=CustomUser.objects.get(id=request_body["user_id"]),
-                    user_wallet_addr=user_wallet.address,
-                    amount=decimal.Decimal(amount),
-                    currency=request_body["ccy"] if "ccy" in request_body else 840,
-                    invoice_id=request_body["invoiceId"]
-                )
-                if refill_transaction:
-                    self.logger.info(f"Transaction successfully created: {refill_transaction.transaction_id}")
+            user_wallet: Wallet = self.get_user_wallet(request_body["user_id"])
 
-            user_wallet.wallet_balance += decimal.Decimal(amount)
-            self.logger.info(f"The balance of wallet {user_wallet.address} has been refilled by {amount}")
+            if request_body["status"] == "success":
+                amount = self.get_correct_amount(request_body)
+                self.create_refill_transaction(request_body, user_wallet, amount)
+                self.update_wallet_balance(user_wallet, amount)
+
         except Exception as e:
-            print(e)
+            self.logger.error(f"Transaction processing: {e}")
             return Response({"status": "error"}, status=status.HTTP_400_BAD_REQUEST)
 
-        print(f"REQUEST BODY: {request_body}")
         return Response({"status": "success"}, status=status.HTTP_200_OK)
+
+    def get_user_wallet(self, user_id: int) -> Wallet | None:
+        """
+        Return an instance of the user wallet
+        """
+        try:
+            return Wallet.objects.select_related("user").get(user_id=user_id)
+        except Wallet.DoesNotExist:
+            self.logger.error("User's wallet is not defined")
+            return None
+
+    def get_correct_amount(self, request_body) -> decimal.Decimal:
+        """
+        Changes the amount type from float to decimal
+        and converts the amount of kopecks to whole currency
+        """
+        converted_amount = request_body["amount"] / 100
+        self.logger.info(f"Amount converted: {converted_amount}")
+        return decimal.Decimal(converted_amount)
+
+    def create_refill_transaction(self, request_body, user_wallet: Wallet, amount: decimal.Decimal) -> None:
+        refill_transaction = PaymentTransaction.objects.create(
+            transaction_id=request_body["transactionId"],
+            user=user_wallet.user,
+            user_wallet_addr=user_wallet.address,
+            amount=amount,
+            currency=request_body.get("ccy", 840),
+            invoice_id=request_body["invoiceId"],
+        )
+
+        if refill_transaction:
+            self.logger.info(f"Transaction successfully created: {refill_transaction.transaction_id}")
+
+        self.logger.info(f"Waiting for transaction processing to complete")
+
+    def update_wallet_balance(self, user_wallet: Wallet, amount: decimal.Decimal) -> None:
+        """
+        Updates the user's wallet balance.
+        """
+        user_wallet.wallet_balance += amount
+        user_wallet.save()
+        self.logger.info(f"The balance of wallet {user_wallet.address} has been refilled by {amount}")
