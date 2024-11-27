@@ -19,7 +19,8 @@ def decrypt_data(data: str) -> str:
 
 def get_node_url() -> str | None:
     try:
-        response = requests.get("http://127.0.0.1:4040/api/tunnels")
+        # response = requests.get("http://127.0.0.1:4040/api/tunnels")
+        response = requests.get("http://ngrok:4040/api/tunnels")
         response.raise_for_status()
         tunnels: list = response.json().get("tunnels", [])
         return tunnels[0]["public_url"]
