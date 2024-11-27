@@ -1,0 +1,47 @@
+version: "3.8"
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: docker_scripts/payment_service/Dockerfile
+    container_name: payment_service
+    env_file: docker_scripts/payment_service/.env
+    environment:
+      NODE_ENV: production
+    volumes:
+      - db-data:/var/lib/sqlite3/data:rw
+    ports:
+      - "8080:8080"
+    networks:
+      - app-network
+
+  ngrok:
+    container_name: ngrok
+    image: ngrok/ngrok:latest
+    command:
+      - "http"
+      - "http://host.docker.internal:8080"
+    env_file: docker_scripts/payment_service/.env
+    ports:
+      - "4040:4040"
+    restart: on-failure
+    networks:
+      - app-network
+
+  url-fetcher:
+    container_name: ngrok_public_url
+    image: curlimages/curl
+    command: "sh -c 'sleep 5 && curl http://ngrok:4040/api/tunnels'"
+    depends_on:
+      - ngrok
+    networks:
+      - app-network
+
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  db-data:

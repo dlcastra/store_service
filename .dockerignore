@@ -9,7 +9,6 @@
 **/.venv
 **/.classpath
 **/.dockerignore
-**/.env
 **/.git
 **/.gitignore
 **/.project
@@ -23,8 +22,8 @@
 **/bin
 **/charts
 **/docker-compose*
-**/compose.y*ml
-**/Dockerfile*
+docker_scripts/main/compose.yaml
+docker_scripts/main/Dockerfile
 **/node_modules
 **/npm-debug.log
 **/obj
